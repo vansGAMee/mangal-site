@@ -1,3 +1,4 @@
+// Trigger build
 import { db } from "@/server/shared/db";
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
