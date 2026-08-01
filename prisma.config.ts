@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
+const dbUrl = process.env.DIRECT_URL?.trim() || process.env.DATABASE_URL?.trim() || "postgresql://postgres:postgres@localhost:5432/mangal_dev";
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -8,7 +10,7 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env.DIRECT_URL?.trim() || env("DATABASE_URL"),
+    url: dbUrl,
     ...(process.env.SHADOW_DATABASE_URL?.trim() ? { shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL } : {}),
   },
 });
