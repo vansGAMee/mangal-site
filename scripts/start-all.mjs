@@ -1,6 +1,12 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import net from 'net';
 import EmbeddedPostgres from 'embedded-postgres';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const nativeLibDir = path.resolve(__dirname, '../node_modules/@embedded-postgres/linux-x64/native/lib');
+process.env.LD_LIBRARY_PATH = process.env.LD_LIBRARY_PATH ? `${nativeLibDir}:${process.env.LD_LIBRARY_PATH}` : nativeLibDir;
 
 async function isPortOpen(port) {
   return new Promise((resolve) => {

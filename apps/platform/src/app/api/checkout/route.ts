@@ -45,6 +45,7 @@ export async function POST(request: Request): Promise<Response> {
       headers: { ...corsHeaders(origin), "Cache-Control": "no-store", "X-Request-Id": id },
     });
   } catch (error) {
+    console.error("Checkout Catch Error:", error);
     if (error instanceof CheckoutError) { checkoutResults.inc({ result: error.code }); if (error.code === "catalog_changed") catalogChanged.inc(); return withCors(apiError(error.code, error.status, id, error.message), origin); }
     if (error instanceof BodyTooLargeError || error instanceof SyntaxError) {
       return withCors(apiError("validation", 400, id, "Некорректное тело запроса"), origin);

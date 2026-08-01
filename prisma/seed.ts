@@ -60,6 +60,10 @@ async function seedCatalog(): Promise<void> {
       isOrderable: product.isOrderable ?? true,
       isAvailable: true,
       imagePath: "/images/product-placeholder.svg",
+      fiscalVatCode: "1",
+      fiscalPaymentSubject: "1",
+      fiscalPaymentMode: "1",
+      fiscalMeasure: "1",
     } as const;
 
     await prisma.product.upsert({
@@ -174,9 +178,11 @@ async function main(): Promise<void> {
         id: "singleton",
         ...STORE_SEED,
         legalBasis: process.env.PERSONAL_DATA_LEGAL_BASIS === "CONSENT" ? "CONSENT" : "CONTRACT",
+        taxSystemCode: "0",
       },
       update: {
         ...STORE_SEED,
+        taxSystemCode: "0",
       },
     });
     await tx.migrationSentinel.upsert({
@@ -184,6 +190,39 @@ async function main(): Promise<void> {
       create: { id: 1, version: "202608010001_initial" },
       update: { version: "202608010001_initial" },
     });
+    await tx.deliveryZone.upsert({
+      where: { id: "ad72a135-8f23-4c9d-9db5-b64fb440e23f" },
+      create: {
+        id: "ad72a135-8f23-4c9d-9db5-b64fb440e23f",
+        name: "Центр (Саратов)",
+        city: "Саратов",
+        feeKopecks: 20000,
+        isActive: true,
+      },
+      update: {
+        name: "Центр (Саратов)",
+        city: "Саратов",
+        feeKopecks: 20000,
+        isActive: true,
+      },
+    });
+    await tx.paymentRouting.upsert({
+      where: { method: "CARD" },
+      create: { method: "CARD", provider: "YOOKASSA", isActive: true },
+      update: { provider: "YOOKASSA", isActive: true },
+    });
+    await tx.paymentRouting.upsert({
+      where: { method: "SBP" },
+      create: { method: "SBP", provider: "TBANK", isActive: true },
+      update: { provider: "TBANK", isActive: true },
+    });
+    for (let day = 0; day <= 6; day++) {
+      await tx.operatingHours.upsert({
+        where: { weekday: day },
+        create: { weekday: day, opensAt: "00:00", closesAt: "23:59", isClosed: false, slotLength: 15 },
+        update: { opensAt: "00:00", closesAt: "23:59", isClosed: false, slotLength: 15 },
+      });
+    }
   });
   await seedCatalog();
   await seedLegalDrafts();
