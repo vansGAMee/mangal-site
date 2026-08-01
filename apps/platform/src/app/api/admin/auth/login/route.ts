@@ -19,6 +19,7 @@ export async function POST(request: Request): Promise<Response> {
     for (const cookie of sessionCookies(result.token, result.csrfToken)) headers.append("Set-Cookie", cookie);
     return new Response(JSON.stringify({ admin: result.admin }), { status: 200, headers });
   } catch (error) {
+    console.error("Login Error:", error);
     const code = error instanceof AdminAuthError ? error.code : "unavailable";
     return Response.json({ error: code }, { status: code === "locked" ? 423 : code === "mfa_required" ? 401 : 401, headers: { "Cache-Control": "no-store", "X-Request-Id": id } });
   }
