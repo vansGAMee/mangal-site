@@ -31,7 +31,8 @@
     "launch-check": "tsx apps/platform/src/entrypoints/launch-check.ts",
     "legal:hashes": "tsx scripts/legal-hashes.ts",
     "check:encoding": "node scripts/encoding-check.mjs",
-    "admin:bootstrap": "tsx apps/platform/src/entrypoints/bootstrap-admin.ts"
+    "admin:bootstrap": "tsx apps/platform/src/entrypoints/bootstrap-admin.ts",
+    "start:all": "node scripts/start-all.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "5.2.8",

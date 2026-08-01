@@ -13,3 +13,4 @@ test-results/
 src/generated/prisma/
 apps/platform/src/generated/prisma/
 /generated/prisma/
+.pgdata/
