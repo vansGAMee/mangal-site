@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npm run build:storefront",
+  "outputDirectory": "apps/storefront/.next",
+  "framework": "nextjs"
+}
