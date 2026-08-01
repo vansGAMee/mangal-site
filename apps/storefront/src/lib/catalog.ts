@@ -39,7 +39,7 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "/images/demo/shashlyk.jpg",
           modifiers: [],
         },
         {
@@ -58,7 +58,7 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "",
           modifiers: [],
         },
         {
@@ -77,7 +77,7 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "",
           modifiers: [],
         },
         {
@@ -96,7 +96,7 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "",
           modifiers: [],
         },
       ],
@@ -122,7 +122,7 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "/images/demo/shaurma.jpg",
           modifiers: [],
         },
         {
@@ -141,7 +141,7 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "",
           modifiers: [],
         },
       ],
@@ -167,7 +167,7 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "/images/demo/sauce.jpg",
           modifiers: [],
         },
         {
@@ -186,13 +186,39 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
           requiresPriceConfirmation: false,
           isOrderable: true,
           isAvailable: true,
-          imagePath: "/images/product-placeholder.svg",
+          imagePath: "",
           modifiers: [],
         },
       ],
     },
   ],
 };
+
+const DEMO_IMAGE_MAP: Record<string, string> = {
+  "shashlyk-iz-svininy": "/images/demo/shashlyk.jpg",
+  "shaurma-s-govyadinoy": "/images/demo/shaurma.jpg",
+  "syrnyy-sous": "/images/demo/sauce.jpg",
+  "hot-dog-so-slivochnoy-sosiskoy": "/images/demo/hotdog.jpg",
+  "burger-klassicheskiy": "/images/demo/burger.jpg",
+};
+
+function enrichCatalog(catalog: PublicCatalogResponse): PublicCatalogResponse {
+  return {
+    ...catalog,
+    categories: catalog.categories.map((category) => ({
+      ...category,
+      products: category.products.map((product) => {
+        if (!product.imagePath || product.imagePath === "/images/product-placeholder.svg") {
+          return {
+            ...product,
+            imagePath: DEMO_IMAGE_MAP[product.slug] ?? "",
+          };
+        }
+        return product;
+      }),
+    })),
+  };
+}
 
 export async function fetchCatalog(): Promise<PublicCatalogResponse> {
   const baseUrl = process.env.PLATFORM_API_URL ?? process.env.NEXT_PUBLIC_PLATFORM_API_URL;
@@ -203,11 +229,12 @@ export async function fetchCatalog(): Promise<PublicCatalogResponse> {
         headers: { Accept: "application/json" },
       });
       if (response.ok) {
-        return (await response.json()) as PublicCatalogResponse;
+        const raw = (await response.json()) as PublicCatalogResponse;
+        return enrichCatalog(raw);
       }
     } catch {
       // Fallback if API fails
     }
   }
-  return FALLBACK_CATALOG;
+  return enrichCatalog(FALLBACK_CATALOG);
 }

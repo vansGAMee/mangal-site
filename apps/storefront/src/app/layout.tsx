@@ -21,31 +21,36 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0D0D0E", colorScheme: "dark" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#fdfaf4", colorScheme: "light" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ru" className={`${displayFont.variable} ${interfaceFont.variable} ${monoFont.variable}`}>
       <body>
-        <a href="#content" className="fixed left-3 top-3 z-[200] -translate-y-24 bg-[var(--ivory)] px-4 py-3 text-black focus:translate-y-0">К содержанию</a>
-        <header className="shell flex min-h-20 items-center justify-between border-b hairline">
-          <Link href="/" aria-label="МАНГАЛ — на главную"><BrandMark /></Link>
-          <nav aria-label="Основная навигация" className="flex items-center gap-5 text-sm">
-            <Link href="/#menu" className="hidden sm:inline">Меню</Link>
-            <a href="tel:+79271061644" className="mono text-xs sm:text-sm">8 927 106 16 44</a>
-          </nav>
+        <a href="#content" className="fixed left-3 top-3 z-[200] -translate-y-24 bg-[var(--charcoal)] px-4 py-3 text-[var(--ivory)] focus:translate-y-0">К содержанию</a>
+        <header className="sticky top-0 z-50 bg-[var(--ivory)]/95 backdrop-blur-sm border-b hairline">
+          <div className="shell flex min-h-16 items-center justify-between">
+            <Link href="/" aria-label="МАНГАЛ — на главную"><BrandMark className="h-8 w-8" /></Link>
+            <nav aria-label="Основная навигация" className="flex items-center gap-5 text-sm font-medium">
+              <Link href="/#menu" className="hidden sm:inline hover:text-[var(--ember)] transition-colors">Меню</Link>
+              <a href="tel:+79271061644" className="mono text-xs sm:text-sm hover:text-[var(--ember)] transition-colors">8 927 106 16 44</a>
+            </nav>
+          </div>
         </header>
         <main id="content">{children}</main>
-        <footer className="mt-24 border-t hairline py-12">
+        <footer className="mt-24 border-t hairline bg-[#f4f0e6] py-12">
           <div className="shell grid gap-10 md:grid-cols-[1fr_1.5fr]">
-            <div><BrandMark /><p className="mt-5 max-w-sm text-sm leading-6 text-[var(--muted)]">Реквизиты оператора будут опубликованы после подтверждения. До этого production launch заблокирован.</p></div>
-            <div className="grid gap-3 text-sm md:grid-cols-2">
-              <Link href="/legal/privacy">Политика конфиденциальности</Link>
-              <Link href="/legal/terms">Пользовательское соглашение</Link>
-              <Link href="/legal/offer">Оферта и условия доставки</Link>
-              <Link href="/legal/marketing">Согласие на рассылку</Link>
-              <Link href="/legal/cookies">Уведомление о cookie</Link>
-              <a href="tel:+79271061644">8 927 106 16 44</a>
+            <div>
+              <BrandMark className="text-[var(--charcoal)] opacity-30" />
+              <p className="mt-5 max-w-sm text-sm leading-6 text-[var(--muted)]">Реквизиты оператора будут опубликованы после подтверждения. До этого production launch заблокирован.</p>
+            </div>
+            <div className="grid gap-3 text-sm md:grid-cols-2 text-[var(--charcoal-raised)]">
+              <Link href="/legal/privacy" className="hover:text-[var(--ember)] transition-colors">Политика конфиденциальности</Link>
+              <Link href="/legal/terms" className="hover:text-[var(--ember)] transition-colors">Пользовательское соглашение</Link>
+              <Link href="/legal/offer" className="hover:text-[var(--ember)] transition-colors">Оферта и условия доставки</Link>
+              <Link href="/legal/marketing" className="hover:text-[var(--ember)] transition-colors">Согласие на рассылку</Link>
+              <Link href="/legal/cookies" className="hover:text-[var(--ember)] transition-colors">Уведомление о cookie</Link>
+              <a href="tel:+79271061644" className="hover:text-[var(--ember)] transition-colors">8 927 106 16 44</a>
             </div>
           </div>
         </footer>

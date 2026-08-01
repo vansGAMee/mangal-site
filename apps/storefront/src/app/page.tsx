@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const catalog = await fetchCatalog();
-  const menuItems = catalog.categories.flatMap((category) => category.products);
   const restaurantJsonLd = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
@@ -26,12 +25,87 @@ export default async function HomePage() {
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(restaurantJsonLd).replace(/</g, "\\u003c") }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(menuJsonLd).replace(/</g, "\\u003c") }} />
-    <section className="shell relative min-h-[78dvh] border-b border-white/10 pt-16">
-      <div className="grid min-h-[64dvh] gap-10 md:grid-cols-[1.45fr_.55fr] md:items-end">
-        <div className="self-center"><p className="eyebrow">Сделано на огне · подготовка от {catalog.store.leadTimeMinutes} минут</p><h1 className="display -ml-[.04em] mt-5 text-[clamp(100px,22vw,330px)] leading-[.58] text-[var(--ivory)]">МАН<br />ГАЛ</h1></div>
-        <div className="pb-10 md:pb-20"><p className="max-w-sm text-xl leading-8 text-[#d5d0c8]">Шаурма, бургеры, донеры и мясо на углях. Без выдуманных фотографий и скрытых условий.</p><div className="mt-8 flex items-center gap-4"><a href="#menu" className="inline-flex min-h-12 items-center bg-[var(--ember)] px-6 font-semibold text-black">Смотреть меню</a><a href={`tel:${catalog.store.phoneHref}`} className="mono text-sm">{catalog.store.phoneDisplay}</a></div></div>
+    <section className="shell pt-8 pb-12 md:pt-14 md:pb-16 border-b hairline">
+      <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div>
+          <p className="eyebrow mb-4 text-[var(--ember)] font-medium tracking-wider">ГОТОВИМ НА ОТКРЫТОМ ОГНЕ · {catalog.store.leadTimeMinutes} МИН</p>
+          <h1 className="display text-5xl md:text-7xl leading-[1.05] mb-5 text-[var(--charcoal)]">МАНГАЛ</h1>
+          <p className="text-base md:text-lg leading-relaxed text-[var(--muted)] max-w-lg mb-7">
+            Шаурма, бургеры, донеры и мясо на углях. Закажите на сайте или позвоните нам.
+          </p>
+          
+          <div className="flex flex-wrap items-center gap-4 mb-8">
+            <a href="#menu" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--ember)] px-7 font-medium text-white transition-colors hover:bg-[#b03010] shadow-sm">
+              Смотреть меню
+            </a>
+            <a href={`tel:${catalog.store.phoneHref}`} className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[var(--line)] bg-white px-6 font-medium text-[var(--charcoal)] transition-colors hover:bg-[#f5efe6]">
+              Позвонить: {catalog.store.phoneDisplay}
+            </a>
+          </div>
+
+          <div className="pt-6 border-t hairline grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[var(--muted)]">
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ember)]"></span>
+              <span>Готовим после заказа</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ember)]"></span>
+              <span>Самовывоз и доставка</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ember)]"></span>
+              <span>Актуальное меню и цены</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Hero Right Composition */}
+        <div className="relative group">
+          <div className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden rounded-[12px] border hairline bg-[#ebe6dd] shadow-md">
+            <img 
+              src="/images/demo/hero-grill.jpg" 
+              alt="Мясо на открытом огне" 
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" 
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
+              <span className="text-xs font-medium tracking-wide bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-[4px] border border-white/10">
+                Сочный шашлык на углях
+              </span>
+              <span className="text-[10px] text-white/70 uppercase tracking-wider">
+                Демо-иллюстрация
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="absolute right-0 top-8 mono text-[10px] tracking-[.18em] text-[var(--muted)] [writing-mode:vertical-rl]">CHARCOAL · EMBER · {menuItems.length} MENU ITEMS</div>
+
+      {/* How to Order Block */}
+      <div className="mt-14 pt-10 border-t hairline">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h2 className="display text-2xl text-[var(--charcoal)]">Как сделать заказ</h2>
+          <p className="text-xs text-[var(--muted)]">
+            * Фотографии в демоверсии. Перед запуском заменим на фотографии заведения.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-5 rounded-[8px] bg-white border hairline shadow-xs">
+            <span className="mono text-xs text-[var(--ember)] font-semibold mb-2 block">01</span>
+            <h3 className="font-medium text-base mb-1 text-[var(--charcoal)]">Выберите блюда</h3>
+            <p className="text-xs leading-5 text-[var(--muted)]">Добавьте нужный шашлык, шаурму или напитки в корзину в пару кликов.</p>
+          </div>
+          <div className="p-5 rounded-[8px] bg-white border hairline shadow-xs">
+            <span className="mono text-xs text-[var(--ember)] font-semibold mb-2 block">02</span>
+            <h3 className="font-medium text-base mb-1 text-[var(--charcoal)]">Способ получения</h3>
+            <p className="text-xs leading-5 text-[var(--muted)]">Выберите самовывоз из заведения или доставку курьером до вашей двери.</p>
+          </div>
+          <div className="p-5 rounded-[8px] bg-white border hairline shadow-xs">
+            <span className="mono text-xs text-[var(--ember)] font-semibold mb-2 block">03</span>
+            <h3 className="font-medium text-base mb-1 text-[var(--charcoal)]">Подтвердите заказ</h3>
+            <p className="text-xs leading-5 text-[var(--muted)]">Заказ отправляется напрямую на кухню. Готовим быстро и к точному времени.</p>
+          </div>
+        </div>
+      </div>
     </section>
     <MenuExplorer catalog={catalog} />
   </>;
