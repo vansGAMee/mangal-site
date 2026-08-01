@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title description">
+  <title id="title">Нейтральная иллюстрация меню МАНГАЛ</title>
+  <desc id="description">Тёмная редакционная композиция с углём и линиями жара, не изображающая конкретное блюдо</desc>
+  <rect width="1200" height="900" fill="#121214"/>
+  <path d="M0 680C240 580 384 760 630 640s391-40 570-140v400H0Z" fill="#1c1b1b"/>
+  <path d="M-40 760c240-165 425-42 600-146 184-109 337-70 694-278" fill="none" stroke="#e04e1b" stroke-width="8" opacity=".72"/>
+  <path d="M140 650c146-92 231-46 334-104 123-69 225-50 438-179" fill="none" stroke="#c89d5c" stroke-width="2" opacity=".55"/>
+  <circle cx="914" cy="224" r="118" fill="none" stroke="#f4f1ea" stroke-width="2" opacity=".12"/>
+  <text x="72" y="120" fill="#f4f1ea" font-family="Georgia, serif" font-size="58" letter-spacing="4">МАНГАЛ</text>
+  <text x="76" y="164" fill="#c89d5c" font-family="monospace" font-size="18" letter-spacing="3">ИЗОБРАЖЕНИЕ БЛЮДА ГОТОВИТСЯ</text>
+</svg>
+

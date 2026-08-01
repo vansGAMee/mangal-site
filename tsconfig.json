@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./packages/catalog-seed" },
+    { "path": "./packages/design-system" },
+    { "path": "./apps/storefront" },
+    { "path": "./apps/platform" }
+  ]
+}
+

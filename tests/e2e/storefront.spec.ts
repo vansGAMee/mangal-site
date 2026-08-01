@@ -1,0 +1,4 @@
+import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+test("catalog is keyboard reachable and has no serious accessibility violations",async({page})=>{await page.goto("/");await expect(page.getByRole("heading",{name:/МАНГАЛ/i})).toBeVisible();await page.keyboard.press("Tab");await expect(page.locator(":focus")).toBeVisible();const results=await new AxeBuilder({page}).analyze();expect(results.violations.filter((violation)=>["critical","serious"].includes(violation.impact??""))).toEqual([]);});
+test("analytics is absent before cookie opt-in",async({page})=>{const metrika:string[]=[];page.on("request",request=>{if(request.url().includes("mc.yandex.ru"))metrika.push(request.url())});await page.goto("/");await page.waitForTimeout(800);expect(metrika).toEqual([]);});

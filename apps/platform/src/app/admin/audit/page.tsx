@@ -1,0 +1,1 @@
+import { AdminNav } from "@/components/admin-nav";import { AdminAudit } from "@/components/admin-audit";export default function Page(){return <main className="admin-shell"><AdminNav/><AdminAudit/></main>}

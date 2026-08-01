@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig/base.json",
+  "compilerOptions": { "composite": true, "tsBuildInfoFile": "./.tsbuildinfo" },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}
+

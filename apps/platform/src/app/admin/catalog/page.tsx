@@ -1,0 +1,1 @@
+import { AdminCatalog } from "@/components/admin-catalog";import { AdminNav } from "@/components/admin-nav";export default function Page(){return <main className="admin-shell"><AdminNav/><AdminCatalog/></main>}

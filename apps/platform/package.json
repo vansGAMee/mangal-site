@@ -1,0 +1,19 @@
+{
+  "name": "@mangal/platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "worker": "tsx src/entrypoints/worker.ts",
+    "reconciliation": "tsx src/entrypoints/reconciliation.ts",
+    "retention": "tsx src/entrypoints/retention.ts"
+  },
+  "dependencies": {
+    "@mangal/catalog-seed": "1.0.0",
+    "@mangal/contracts": "1.0.0",
+    "@mangal/design-system": "1.0.0"
+  }
+}
+

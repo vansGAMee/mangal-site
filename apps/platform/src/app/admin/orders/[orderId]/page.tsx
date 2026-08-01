@@ -1,0 +1,1 @@
+import { AdminNav } from "@/components/admin-nav";import { AdminOrder } from "@/components/admin-order";export default async function Page({params}:{params:Promise<{orderId:string}>}){const{orderId}=await params;return <main className="admin-shell"><AdminNav/><AdminOrder orderId={orderId}/></main>}

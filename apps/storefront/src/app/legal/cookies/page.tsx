@@ -1,0 +1,2 @@
+import { LegalDocument } from "@/components/legal-document";
+export default function CookiesPage() { return <LegalDocument title="Cookie и аналитика" version="cookie-v1"><p>Необходимые cookie поддерживают корзину и безопасность. Яндекс Метрика не запрашивается до явного выбора «Принять»; вариант «Только необходимые» отключает аналитику.</p><h2>Ограничения</h2><p>Webvisor и noscript beacon отсутствуют. Телефон, email, адрес и комментарий не передаются в аналитику.</p></LegalDocument>; }

@@ -1,0 +1,19 @@
+container:
+  image: cr.yandex/<registry-id>/mangal-platform:<immutable-tag>
+  service_account_id: <operator-confirmed-service-account-id>
+  memory: 1024MB
+  cores: 1
+  concurrency: <operator-confirmed-concurrency>
+  execution_timeout: 30s
+  secrets:
+    source: Yandex Lockbox
+    required: true
+roles:
+  - web
+  - worker
+  - reconciliation
+  - retention
+notes:
+  - Replace angle-bracket values during an operator-reviewed deployment.
+  - Timer Triggers call POST /run with INTERNAL_JOBS_TOKEN for non-web roles.
+  - PostgreSQL must be in ru-central1; external payment availability is not a readiness dependency.

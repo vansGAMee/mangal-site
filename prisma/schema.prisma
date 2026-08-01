@@ -1,0 +1,680 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PricingType {
+  FIXED
+  PER_KILOGRAM
+}
+
+enum SaleUnit {
+  PIECE
+  PORTION
+  KILOGRAM
+}
+
+enum ModifierKind {
+  OTHER
+}
+
+enum SelectionMode {
+  SINGLE
+  MULTIPLE
+}
+
+enum PaymentMethod {
+  CARD
+  SBP
+}
+
+enum PaymentProvider {
+  YOOKASSA
+  TBANK
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  REFUND_PENDING
+  REFUNDED
+  FAILED
+}
+
+enum FulfillmentStatus {
+  NEW
+  CONFIRMED
+  PREPARING
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCEL_REQUESTED
+  CANCELED
+}
+
+enum PaymentAttemptStatus {
+  CREATED
+  INITIALIZING
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  UNKNOWN
+}
+
+enum PaymentOperationType {
+  INIT
+  GET_STATE
+  REFUND
+  GET_REFUND_STATE
+}
+
+enum PaymentOperationStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+  UNKNOWN
+}
+
+enum RefundStatus {
+  CREATED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  UNKNOWN
+  REVIEW_REQUIRED
+}
+
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  DEAD_LETTER
+}
+
+enum ReconciliationTaskStatus {
+  PENDING
+  PROCESSING
+  RESOLVED
+  REVIEW_REQUIRED
+}
+
+enum ConsentType {
+  PERSONAL_DATA
+  MARKETING
+  COOKIE
+  OFFER
+  TERMS
+}
+
+enum ConsentDecision {
+  GRANTED
+  DECLINED
+  ACKNOWLEDGED
+}
+
+enum LegalBasis {
+  CONTRACT
+  CONSENT
+}
+
+enum AdminRole {
+  ADMIN
+  MANAGER
+}
+
+enum AdminPermissionCode {
+  REFUND_ORDER
+}
+
+model Category {
+  id        String    @id @default(uuid()) @db.Uuid
+  slug      String    @unique
+  name      String
+  position  Int
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  products  Product[]
+
+  @@index([isActive, position])
+}
+
+model Product {
+  id                        String                 @id @default(uuid()) @db.Uuid
+  publicId                  String                 @unique @default(cuid())
+  categoryId                String                 @db.Uuid
+  slug                      String                 @unique
+  name                      String
+  compositionText           String?
+  portionNote               String?
+  pricingType               PricingType
+  saleUnit                  SaleUnit
+  basePriceKopecks          Int?
+  unitPriceKopecks          Int?
+  priceUnitGrams            Int?
+  weightGrams               Int?
+  quantityStep              Int                    @default(1)
+  displayPriceLabel         String
+  requiresPriceConfirmation Boolean                @default(false)
+  isOrderable               Boolean                @default(true)
+  isAvailable               Boolean                @default(true)
+  caloriesKcal              Int?
+  allergens                 String?
+  imagePath                 String                 @default("/images/product-placeholder.svg")
+  fiscalVatCode             String?
+  fiscalPaymentSubject      String?
+  fiscalPaymentMode         String?
+  fiscalMeasure             String?
+  version                   Int                    @default(1)
+  createdAt                 DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime               @updatedAt @db.Timestamptz(3)
+  category                  Category               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  modifierGroups            ProductModifierGroup[]
+  orderItems                OrderItem[]
+
+  @@index([categoryId, isAvailable])
+  @@index([isOrderable, isAvailable])
+}
+
+model ModifierGroup {
+  id            String                 @id @default(uuid()) @db.Uuid
+  slug          String                 @unique
+  name          String
+  kind          ModifierKind
+  selectionMode SelectionMode
+  required      Boolean
+  minSelect     Int
+  maxSelect     Int?
+  position      Int
+  isActive      Boolean                @default(true)
+  createdAt     DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime               @updatedAt @db.Timestamptz(3)
+  options       ModifierOption[]
+  products      ProductModifierGroup[]
+}
+
+model ModifierOption {
+  id                 String              @id @default(uuid()) @db.Uuid
+  groupId            String              @db.Uuid
+  slug               String
+  name               String
+  priceDeltaKopecks  Int
+  position           Int
+  isAvailable        Boolean             @default(true)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  group              ModifierGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orderItemModifiers OrderItemModifier[]
+
+  @@unique([groupId, slug])
+  @@index([groupId, isAvailable])
+}
+
+model ProductModifierGroup {
+  productId       String        @db.Uuid
+  modifierGroupId String        @db.Uuid
+  position        Int
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@id([productId, modifierGroupId])
+}
+
+model StoreSettings {
+  id                    String     @id @default("singleton")
+  phoneDisplay          String
+  phoneHref             String
+  leadTimeMinutes       Int
+  minimumOrderKopecks   Int?
+  deliveryPricingConfig Json?
+  legalBasis            LegalBasis
+  taxSystemCode         String?
+  version               Int        @default(1)
+  updatedAt             DateTime   @updatedAt @db.Timestamptz(3)
+}
+
+model DeliveryZone {
+  id                   String   @id @default(uuid()) @db.Uuid
+  publicId             String   @unique @default(cuid())
+  name                 String
+  city                 String
+  feeKopecks           Int
+  freeThresholdKopecks Int?
+  minOrderKopecks      Int?
+  polygon              Json?
+  isActive             Boolean  @default(true)
+  version              Int      @default(1)
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @db.Timestamptz(3)
+  orders               Order[]
+
+  @@index([isActive])
+}
+
+model OperatingHours {
+  id         String   @id @default(uuid()) @db.Uuid
+  weekday    Int      @unique
+  opensAt    String?
+  closesAt   String?
+  isClosed   Boolean  @default(false)
+  slotLength Int
+  capacity   Int?
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model PaymentRouting {
+  method    PaymentMethod   @id
+  provider  PaymentProvider
+  isActive  Boolean         @default(false)
+  version   Int             @default(1)
+  updatedAt DateTime        @updatedAt @db.Timestamptz(3)
+}
+
+model Order {
+  id                  String               @id @default(uuid()) @db.Uuid
+  publicId            String               @unique
+  checkoutId          String               @unique @db.Uuid
+  checkoutRequestHash String
+  paymentStatus       PaymentStatus        @default(UNPAID)
+  fulfillmentStatus   FulfillmentStatus    @default(NEW)
+  paymentMethod       PaymentMethod
+  currency            String               @default("RUB")
+  subtotalKopecks     Int
+  deliveryFeeKopecks  Int
+  totalKopecks        Int
+  deliveryZoneId      String               @db.Uuid
+  deliverySlotStart   DateTime             @db.Timestamptz(3)
+  phoneEncrypted      Json
+  phoneLookupHash     String
+  emailEncrypted      Json?
+  cityEncrypted       Json
+  streetEncrypted     Json
+  houseEncrypted      Json
+  apartmentEncrypted  Json?
+  entranceEncrypted   Json?
+  floorEncrypted      Json?
+  intercomEncrypted   Json?
+  commentEncrypted    Json?
+  taxSystemSnapshot   String
+  version             Int                  @default(1)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
+  deliveryZone        DeliveryZone         @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
+  items               OrderItem[]
+  consents            LegalConsent[]
+  paymentAttempts     PaymentAttempt[]
+  refunds             Refund[]
+  statusHistory       OrderStatusHistory[]
+  auditLogs           AdminAuditLog[]
+  notifications       SystemNotification[]
+
+  @@index([paymentStatus, createdAt])
+  @@index([fulfillmentStatus, createdAt])
+  @@index([phoneLookupHash])
+  @@index([deliverySlotStart])
+}
+
+model OrderItem {
+  id                     String              @id @default(uuid()) @db.Uuid
+  orderId                String              @db.Uuid
+  productId              String?             @db.Uuid
+  productVersionSnapshot Int
+  nameSnapshot           String
+  compositionSnapshot    String?
+  portionNoteSnapshot    String?
+  pricingTypeSnapshot    PricingType
+  saleUnitSnapshot       SaleUnit
+  unitPriceKopecks       Int
+  quantity               Int
+  lineTotalKopecks       Int
+  order                  Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product                Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  modifiers              OrderItemModifier[]
+  fiscalSnapshot         FiscalItemSnapshot?
+
+  @@index([orderId])
+}
+
+model OrderItemModifier {
+  id                 String          @id @default(uuid()) @db.Uuid
+  orderItemId        String          @db.Uuid
+  modifierOptionId   String?         @db.Uuid
+  groupNameSnapshot  String
+  optionNameSnapshot String
+  priceDeltaKopecks  Int
+  orderItem          OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  modifierOption     ModifierOption? @relation(fields: [modifierOptionId], references: [id], onDelete: SetNull)
+
+  @@index([orderItemId])
+}
+
+model FiscalItemSnapshot {
+  id                       String    @id @default(uuid()) @db.Uuid
+  orderItemId              String    @unique @db.Uuid
+  fiscalName               String
+  unitPriceKopecks         Int
+  quantity                 Int
+  amountKopecks            Int
+  vatCode                  String
+  taxSystemCode            String
+  paymentSubject           String
+  paymentMode              String
+  measure                  String
+  providerReceiptId        String?
+  sourceReceiptPayloadHash String
+  createdAt                DateTime  @default(now()) @db.Timestamptz(3)
+  orderItem                OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+}
+
+model OrderStatusHistory {
+  id                String            @id @default(uuid()) @db.Uuid
+  orderId           String            @db.Uuid
+  paymentStatus     PaymentStatus
+  fulfillmentStatus FulfillmentStatus
+  reasonCode        String?
+  actorType         String
+  actorId           String?
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  order             Order             @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+}
+
+model LegalDocumentVersion {
+  id            String         @id @default(uuid()) @db.Uuid
+  type          ConsentType
+  version       String
+  documentPath  String
+  contentSha256 String
+  approved      Boolean        @default(false)
+  activeFrom    DateTime?      @db.Timestamptz(3)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  consents      LegalConsent[]
+
+  @@unique([type, version])
+}
+
+model LegalConsent {
+  id                     String                @id @default(uuid()) @db.Uuid
+  orderId                String                @db.Uuid
+  legalDocumentVersionId String?               @db.Uuid
+  type                   ConsentType
+  decision               ConsentDecision
+  version                String
+  documentPath           String
+  contentSha256          String
+  ipEncrypted            Json
+  normalizedUserAgent    String
+  acceptedAt             DateTime              @default(now()) @db.Timestamptz(3)
+  withdrawnAt            DateTime?             @db.Timestamptz(3)
+  withdrawalSource       String?
+  legalBasis             LegalBasis
+  order                  Order                 @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  legalDocumentVersion   LegalDocumentVersion? @relation(fields: [legalDocumentVersionId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, type])
+  @@index([type, version, acceptedAt])
+}
+
+model PaymentAttempt {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  orderId             String                      @db.Uuid
+  provider            PaymentProvider
+  method              PaymentMethod
+  status              PaymentAttemptStatus        @default(CREATED)
+  idempotencyKey      String                      @unique
+  externalPaymentId   String?
+  providerRequestId   String?
+  amountKopecks       Int
+  currency            String                      @default("RUB")
+  confirmationType    String?
+  confirmationUrl     String?
+  confirmationData    String?
+  lastProviderStatus  String?
+  failureCode         String?
+  initializedAt       DateTime?                   @db.Timestamptz(3)
+  lastCheckedAt       DateTime?                   @db.Timestamptz(3)
+  createdAt           DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                    @updatedAt @db.Timestamptz(3)
+  order               Order                       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  operations          PaymentOperation[]
+  webhookEvents       PaymentWebhookEvent[]
+  reconciliationTasks PaymentReconciliationTask[]
+  refunds             Refund[]
+
+  @@index([status, updatedAt])
+  @@index([externalPaymentId])
+  @@index([orderId, createdAt])
+}
+
+model PaymentOperation {
+  id                String                 @id @default(uuid()) @db.Uuid
+  paymentAttemptId  String                 @db.Uuid
+  type              PaymentOperationType
+  status            PaymentOperationStatus
+  providerRequestId String?
+  requestHash       String
+  responseHash      String?
+  errorCode         String?
+  durationMs        Int?
+  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
+  completedAt       DateTime?              @db.Timestamptz(3)
+  paymentAttempt    PaymentAttempt         @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@index([paymentAttemptId, createdAt])
+}
+
+model PaymentWebhookEvent {
+  id                String          @id @default(uuid()) @db.Uuid
+  provider          PaymentProvider
+  fingerprint       String          @unique
+  externalPaymentId String?
+  paymentAttemptId  String?         @db.Uuid
+  payloadHash       String
+  providerStatus    String?
+  verified          Boolean
+  processedAt       DateTime?       @db.Timestamptz(3)
+  receivedAt        DateTime        @default(now()) @db.Timestamptz(3)
+  paymentAttempt    PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id], onDelete: SetNull)
+
+  @@index([provider, externalPaymentId])
+  @@index([processedAt, receivedAt])
+}
+
+model PaymentReconciliationTask {
+  id               String                   @id @default(uuid()) @db.Uuid
+  paymentAttemptId String                   @db.Uuid
+  status           ReconciliationTaskStatus @default(PENDING)
+  reason           String
+  availableAt      DateTime                 @default(now()) @db.Timestamptz(3)
+  attempts         Int                      @default(0)
+  leaseOwner       String?
+  leaseExpiresAt   DateTime?                @db.Timestamptz(3)
+  lastErrorCode    String?
+  createdAt        DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                 @updatedAt @db.Timestamptz(3)
+  paymentAttempt   PaymentAttempt           @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@index([status, availableAt])
+}
+
+model Refund {
+  id                String         @id @default(uuid()) @db.Uuid
+  orderId           String         @db.Uuid
+  paymentAttemptId  String         @db.Uuid
+  status            RefundStatus   @default(CREATED)
+  amountKopecks     Int
+  currency          String         @default("RUB")
+  reason            String
+  idempotencyKey    String         @unique
+  externalRefundId  String?
+  providerRequestId String?
+  failureCode       String?
+  createdByAdminId  String         @db.Uuid
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+  completedAt       DateTime?      @db.Timestamptz(3)
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  paymentAttempt    PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+  createdByAdmin    AdminUser      @relation(fields: [createdByAdminId], references: [id], onDelete: Restrict)
+
+  @@index([status, updatedAt])
+  @@index([externalRefundId])
+}
+
+model OutboxEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  type           String
+  aggregateType  String
+  aggregateId    String
+  payload        Json
+  status         OutboxEventStatus @default(PENDING)
+  availableAt    DateTime          @default(now()) @db.Timestamptz(3)
+  attempts       Int               @default(0)
+  maxAttempts    Int               @default(12)
+  leaseOwner     String?
+  leaseExpiresAt DateTime?         @db.Timestamptz(3)
+  lastErrorCode  String?
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  completedAt    DateTime?         @db.Timestamptz(3)
+
+  @@index([status, availableAt])
+  @@index([aggregateType, aggregateId])
+}
+
+model IdempotencyRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  scope        String
+  key          String
+  requestHash  String
+  resourceType String
+  resourceId   String
+  statusCode   Int
+  responseBody Json
+  expiresAt    DateTime @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+}
+
+model AdminUser {
+  id                String               @id @default(uuid()) @db.Uuid
+  emailNormalized   String               @unique
+  passwordHash      String
+  role              AdminRole
+  isActive          Boolean              @default(true)
+  mfaRequired       Boolean              @default(false)
+  mfaEnrolledAt     DateTime?            @db.Timestamptz(3)
+  failedLoginCount  Int                  @default(0)
+  lockedUntil       DateTime?            @db.Timestamptz(3)
+  passwordChangedAt DateTime             @default(now()) @db.Timestamptz(3)
+  createdAt         DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime             @updatedAt @db.Timestamptz(3)
+  sessions          AdminSession[]
+  totpCredential    AdminTotpCredential?
+  recoveryCodes     AdminRecoveryCode[]
+  permissions       AdminPermission[]
+  auditLogs         AdminAuditLog[]
+  refunds           Refund[]
+}
+
+model AdminSession {
+  id                String    @id @default(uuid()) @db.Uuid
+  adminUserId       String    @db.Uuid
+  tokenHash         String    @unique
+  csrfTokenHash     String
+  lastSeenAt        DateTime  @default(now()) @db.Timestamptz(3)
+  idleExpiresAt     DateTime  @db.Timestamptz(3)
+  absoluteExpiresAt DateTime  @db.Timestamptz(3)
+  revokedAt         DateTime? @db.Timestamptz(3)
+  reauthUntil       DateTime? @db.Timestamptz(3)
+  reauthNonceHash   String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  adminUser         AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, revokedAt])
+  @@index([idleExpiresAt])
+}
+
+model AdminTotpCredential {
+  id              String    @id @default(uuid()) @db.Uuid
+  adminUserId     String    @unique @db.Uuid
+  secretEncrypted Json
+  verifiedAt      DateTime? @db.Timestamptz(3)
+  lastCounter     Int?
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  adminUser       AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+}
+
+model AdminRecoveryCode {
+  id          String    @id @default(uuid()) @db.Uuid
+  adminUserId String    @db.Uuid
+  codeHash    String
+  usedAt      DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@unique([adminUserId, codeHash])
+}
+
+model AdminPermission {
+  adminUserId String              @db.Uuid
+  code        AdminPermissionCode
+  grantedAt   DateTime            @default(now()) @db.Timestamptz(3)
+  adminUser   AdminUser           @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@id([adminUserId, code])
+}
+
+model AdminAuditLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  adminUserId String    @db.Uuid
+  orderId     String?   @db.Uuid
+  action      String
+  targetType  String
+  targetId    String
+  metadata    Json
+  requestId   String
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId, createdAt])
+}
+
+model RateLimitBucket {
+  keyHash     String   @id
+  count       Int
+  windowStart DateTime @db.Timestamptz(3)
+  expiresAt   DateTime @db.Timestamptz(3)
+
+  @@index([expiresAt])
+}
+
+model SystemNotification {
+  id        String    @id @default(uuid()) @db.Uuid
+  orderId   String?   @db.Uuid
+  type      String
+  status    String
+  payload   Json
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  sentAt    DateTime? @db.Timestamptz(3)
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+model MigrationSentinel {
+  id        Int      @id @default(1)
+  version   String
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}

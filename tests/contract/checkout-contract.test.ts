@@ -1,0 +1,4 @@
+import { describe, expect, it } from "vitest";
+import { CheckoutRequestSchema } from "@mangal/contracts";
+const valid = { checkoutId:"a7c82a8a-5c12-4f67-bc6f-7b68a64510f8",items:[{productId:"58e72ee8-aaad-4b8b-a42f-ee60be5cd07e",quantity:1,modifierOptionIds:[],unit:"PIECE"}],contact:{phone:"+79271061644"},delivery:{zoneId:"ad72a135-8f23-4c9d-9db5-b64fb440e23f",city:"Саратов",street:"Улица",house:"1",slotStart:"2026-08-01T16:00:00+04:00"},paymentMethod:"CARD",consents:{marketing:{accepted:false,version:"marketing-v1"},offer:{accepted:true,version:"offer-v1"},terms:{accepted:true,version:"terms-v1"}}};
+describe("checkout contract",()=>{it("supports an explicit marketing decline",()=>expect(CheckoutRequestSchema.safeParse(valid).success).toBe(true));it("rejects client prices and non-integer kilograms",()=>{expect(CheckoutRequestSchema.safeParse({...valid,items:[{...valid.items[0],unit:"KILOGRAM",quantity:1.5,price:1}]}).success).toBe(false)});});

@@ -1,0 +1,1 @@
+import { AdminNav } from "@/components/admin-nav";import { AdminSettings } from "@/components/admin-settings";export default function Page(){return <main className="admin-shell"><AdminNav/><AdminSettings/></main>}
