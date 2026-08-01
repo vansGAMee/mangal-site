@@ -10,7 +10,6 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "npx prisma generate",
     "dev": "npm run dev --workspace=@mangal/storefront",
     "dev:storefront": "npm run dev --workspace=@mangal/storefront",
     "dev:platform": "npm run dev --workspace=@mangal/platform",
