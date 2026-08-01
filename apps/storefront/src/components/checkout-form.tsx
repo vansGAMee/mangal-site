@@ -20,6 +20,7 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [fulfillmentType, setFulfillmentType] = useState<"DELIVERY" | "PICKUP">("PICKUP");
   const products = useMemo(() => new Map(catalog.categories.flatMap((category) => category.products).map((product) => [product.id, product])), [catalog]);
   const estimated = items.reduce((sum, line) => {
     const product = products.get(line.productId);
@@ -37,18 +38,22 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
     if (!checkoutId) { checkoutId = crypto.randomUUID(); sessionStorage.setItem("mangal-checkout-id", checkoutId); }
     const phone = normalizePhone(String(form.get("phone") ?? ""));
     const slotValue = String(form.get("slotStart") ?? "");
+    const isPickup = fulfillmentType === "PICKUP";
     const payload = {
       checkoutId,
       items: items.map((item) => ({ ...item })),
       contact: { phone, ...(form.get("email") ? { email: String(form.get("email")) } : {}) },
       delivery: {
-        zoneId: String(form.get("zoneId")), city: String(form.get("city")), street: String(form.get("street")), house: String(form.get("house")),
-        ...(form.get("apartment") ? { apartment: String(form.get("apartment")) } : {}),
-        ...(form.get("entrance") ? { entrance: String(form.get("entrance")) } : {}),
-        ...(form.get("floor") ? { floor: String(form.get("floor")) } : {}),
-        ...(form.get("intercom") ? { intercom: String(form.get("intercom")) } : {}),
+        zoneId: String(form.get("zoneId") || catalog.store.deliveryZones[0]?.id || ""),
+        city: isPickup ? "Маркс" : String(form.get("city")),
+        street: isPickup ? "Самовывоз" : String(form.get("street")),
+        house: isPickup ? "1" : String(form.get("house")),
+        ...(form.get("apartment") && !isPickup ? { apartment: String(form.get("apartment")) } : {}),
+        ...(form.get("entrance") && !isPickup ? { entrance: String(form.get("entrance")) } : {}),
+        ...(form.get("floor") && !isPickup ? { floor: String(form.get("floor")) } : {}),
+        ...(form.get("intercom") && !isPickup ? { intercom: String(form.get("intercom")) } : {}),
         slotStart: new Date(slotValue).toISOString(),
-        ...(form.get("comment") ? { comment: String(form.get("comment")) } : {}),
+        comment: isPickup ? `[САМОВЫВОЗ] ${form.get("comment") || ""}`.trim() : String(form.get("comment") || ""),
       },
       paymentMethod: String(form.get("paymentMethod")),
       consents: {
@@ -88,7 +93,31 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
   return <form onSubmit={submit} className="grid gap-10 lg:grid-cols-[1fr_.65fr]">
     <div className="space-y-10">
       <fieldset><legend className="display mb-5 text-3xl">Контакты</legend><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Телефон<input className="field mt-2" name="phone" inputMode="tel" autoComplete="tel" placeholder="+7 927 000 00 00" required pattern="[+0-9 ()-]{11,20}" /></label><label className="text-sm">Email для чека, если нужен<input className="field mt-2" name="email" type="email" autoComplete="email" /></label></div></fieldset>
-      <fieldset><legend className="display mb-5 text-3xl">Доставка</legend><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm sm:col-span-2">Зона<select className="field mt-2" name="zoneId" required defaultValue=""><option value="" disabled>Выберите зону</option>{catalog.store.deliveryZones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name} · {zone.city} · {formatRubles(zone.feeKopecks)}</option>)}</select></label><label className="text-sm">Город<input className="field mt-2" name="city" autoComplete="address-level2" required /></label><label className="text-sm">Улица<input className="field mt-2" name="street" autoComplete="street-address" required /></label><label className="text-sm">Дом<input className="field mt-2" name="house" required /></label><label className="text-sm">Квартира<input className="field mt-2" name="apartment" /></label><label className="text-sm">Подъезд<input className="field mt-2" name="entrance" /></label><label className="text-sm">Этаж<input className="field mt-2" name="floor" /></label><label className="text-sm">Домофон<input className="field mt-2" name="intercom" /></label><label className="text-sm">Время доставки<input className="field mt-2" name="slotStart" type="datetime-local" required /></label><label className="text-sm sm:col-span-2">Комментарий<textarea className="field mt-2 min-h-28 resize-y" name="comment" maxLength={500} /></label></div></fieldset>
+      <fieldset>
+        <legend className="display mb-5 text-3xl">Способ получения</legend>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <button type="button" onClick={() => setFulfillmentType("PICKUP")} className={`border p-4 text-center font-medium transition ${fulfillmentType === "PICKUP" ? "border-[var(--ember)] bg-white/5 text-white" : "border-white/10 text-[var(--muted)]"}`}>🚀 Самовывоз</button>
+          <button type="button" onClick={() => setFulfillmentType("DELIVERY")} className={`border p-4 text-center font-medium transition ${fulfillmentType === "DELIVERY" ? "border-[var(--ember)] bg-white/5 text-white" : "border-white/10 text-[var(--muted)]"}`}>🚚 Доставка</button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {fulfillmentType === "DELIVERY" ? (
+            <>
+              <label className="text-sm sm:col-span-2">Зона<select className="field mt-2" name="zoneId" required defaultValue=""><option value="" disabled>Выберите зону</option>{catalog.store.deliveryZones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name} · {zone.city} · {formatRubles(zone.feeKopecks)}</option>)}</select></label>
+              <label className="text-sm">Город<input className="field mt-2" name="city" autoComplete="address-level2" required /></label>
+              <label className="text-sm">Улица<input className="field mt-2" name="street" autoComplete="street-address" required /></label>
+              <label className="text-sm">Дом<input className="field mt-2" name="house" required /></label>
+              <label className="text-sm">Квартира<input className="field mt-2" name="apartment" /></label>
+              <label className="text-sm">Подъезд<input className="field mt-2" name="entrance" /></label>
+              <label className="text-sm">Этаж<input className="field mt-2" name="floor" /></label>
+              <label className="text-sm">Домофон<input className="field mt-2" name="intercom" /></label>
+            </>
+          ) : (
+            <input type="hidden" name="zoneId" value={catalog.store.deliveryZones[0]?.id || ""} />
+          )}
+          <label className="text-sm sm:col-span-2">{fulfillmentType === "PICKUP" ? "К какому времени приготовить?" : "Время доставки"}<input className="field mt-2" name="slotStart" type="datetime-local" required /></label>
+          <label className="text-sm sm:col-span-2">Комментарий<textarea className="field mt-2 min-h-28 resize-y" name="comment" maxLength={500} placeholder={fulfillmentType === "PICKUP" ? "Например: без лука, упаковать покрепче" : "Дополнительные пожелания"} /></label>
+        </div>
+      </fieldset>
       <fieldset><legend className="display mb-5 text-3xl">Оплата</legend><div className="grid grid-cols-2 gap-3"><label className="border border-white/10 p-4 has-[:checked]:border-[var(--ember)]"><input type="radio" name="paymentMethod" value="CARD" defaultChecked /> <span className="ml-2">Картой</span></label><label className="border border-white/10 p-4 has-[:checked]:border-[var(--ember)]"><input type="radio" name="paymentMethod" value="SBP" /> <span className="ml-2">СБП</span></label></div></fieldset>
       <fieldset className="space-y-4"><legend className="sr-only">Согласия</legend><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="personalData" required={catalog.store.personalDataLegalBasis === "CONSENT"} /> <span>Я ознакомлен(а) с <Link className="underline" href="/legal/privacy">политикой обработки персональных данных</Link>. Чекбокс не предустановлен. {catalog.store.personalDataLegalBasis === "CONTRACT" ? "Основание заказа настроено как исполнение договора; юрист должен подтвердить эту модель." : "Для заказа требуется отдельное согласие."}</span></label><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="offer" required /> <span>Принимаю <Link className="underline" href="/legal/offer">оферту и условия доставки</Link>.</span></label><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="terms" required /> <span>Принимаю <Link className="underline" href="/legal/terms">пользовательское соглашение</Link>.</span></label><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="marketing" /> <span>Хочу получать рекламные SMS. Это необязательно для заказа; отказ также будет сохранён.</span></label></fieldset>
     </div>
