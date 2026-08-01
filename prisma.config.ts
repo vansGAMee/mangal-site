@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
 const dbUrl = process.env.DIRECT_URL?.trim() || process.env.DATABASE_URL?.trim() || "postgresql://postgres:postgres@localhost:5432/mangal_dev";
