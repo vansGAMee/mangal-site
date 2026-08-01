@@ -5,7 +5,7 @@ const positiveInt = z.coerce.number().int().positive();
 
 const RuntimeEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.string().url().default("postgresql://postgres:postgres@localhost:5432/mangal_dev"),
   DATABASE_POOL_MAX: positiveInt.default(5),
   DATABASE_CONNECT_TIMEOUT_MS: positiveInt.default(5_000),
   DATABASE_STATEMENT_TIMEOUT_MS: positiveInt.default(10_000),
