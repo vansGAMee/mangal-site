@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { adminMutation } from "./admin-api";
+import { adminMutation, csrfToken } from "./admin-api";
 
 type Product = {
   id: string;
@@ -42,15 +42,10 @@ export function AdminCatalog() {
         setMessage("Загрузка изображения...");
         const formData = new FormData();
         formData.append("image", file);
-        // Note: x-csrf-token is required for mutations. AdminApi wrapper usually does this, 
-        // but here we use fetch directly for FormData.
-        // We can get csrf token from document.cookie, but adminMutation is a helper. Let's see if adminMutation supports FormData.
-        // Wait, the API route uses `validateAdminMutation`, so it requires `x-csrf-token`.
-        const csrfToken = document.cookie.split("; ").find((row) => row.startsWith("csrf_token="))?.split("=")[1];
-        
+        const token = csrfToken();
         const uploadRes = await fetch(`/api/admin/catalog/products/${product.id}/image`, {
           method: "POST",
-          headers: csrfToken ? { "x-csrf-token": csrfToken } : {},
+          headers: token ? { "X-CSRF-Token": token } : {},
           body: formData,
         });
         if (!uploadRes.ok) throw new Error("Image upload failed: " + await uploadRes.text());
