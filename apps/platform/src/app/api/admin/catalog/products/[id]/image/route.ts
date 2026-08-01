@@ -1,7 +1,7 @@
 import { validateAdminMutation } from "@/server/admin/auth";
 import { db } from "@/server/shared/db";
 import { put } from "@vercel/blob";
-import { NextResponse } from "next";
+import { NextResponse } from "next/server";
 
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   try {
