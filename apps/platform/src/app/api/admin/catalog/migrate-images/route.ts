@@ -31,6 +31,7 @@ export async function GET(request: Request) {
         
         const mimeType = match[1];
         const base64Data = match[2];
+        if (!base64Data || !mimeType) continue;
         const buffer = Buffer.from(base64Data, "base64");
         
         // Get file extension
