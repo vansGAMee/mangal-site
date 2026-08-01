@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
-    "build": "next build",
+    "build": "cd ../.. && npm run prisma:generate && cd apps/platform && next build",
     "start": "next start --port 3001",
     "worker": "tsx src/entrypoints/worker.ts",
     "reconciliation": "tsx src/entrypoints/reconciliation.ts",
@@ -13,7 +13,8 @@
   "dependencies": {
     "@mangal/catalog-seed": "1.0.0",
     "@mangal/contracts": "1.0.0",
-    "@mangal/design-system": "1.0.0"
+    "@mangal/design-system": "1.0.0",
+    "next": "16.2.12"
   }
 }
 
