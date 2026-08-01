@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
     "@mangal/catalog-seed",
     "@mangal/design-system",
   ],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.public.blob.vercel-storage.com",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
