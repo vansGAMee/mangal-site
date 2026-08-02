@@ -4,9 +4,10 @@ import { NextResponse, type NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   const nonce = randomBytes(16).toString("base64");
   const mediaOrigin = safeOrigin(process.env.MEDIA_PUBLIC_BASE_URL ?? "");
+  const developmentEval = process.env.NODE_ENV === "production" ? "" : "'unsafe-eval'";
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src ${["'self'", `'nonce-${nonce}'`, developmentEval].filter(Boolean).join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
     `img-src ${["'self'", "data:", "blob:", mediaOrigin, "https://*.public.blob.vercel-storage.com"].filter(Boolean).join(" ")}`,
     "connect-src 'self'",

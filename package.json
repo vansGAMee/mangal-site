@@ -14,6 +14,7 @@
     "dev": "npm run dev --workspace=@mangal/storefront",
     "dev:storefront": "npm run dev --workspace=@mangal/storefront",
     "dev:platform": "npm run dev --workspace=@mangal/platform",
+    "demo:local": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/demo-local.ps1",
     "build": "npm run build --workspaces --if-present",
     "build:storefront": "npm run build --workspace=@mangal/storefront",
     "build:platform": "npm run build --workspace=@mangal/platform",

@@ -6,13 +6,14 @@ export function proxy(request: NextRequest) {
   const platform = process.env.NEXT_PUBLIC_PLATFORM_API_URL ?? "";
   const mediaOrigin = safeOrigin(process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? platform);
   const platformOrigin = safeOrigin(platform);
+  const developmentEval = process.env.NODE_ENV === "production" ? "" : "'unsafe-eval'";
   const connectSources = ["'self'", platformOrigin, "https://mc.yandex.ru"].filter(Boolean).join(" ");
   const imageSources = ["'self'", "data:", "blob:", mediaOrigin, "https://*.public.blob.vercel-storage.com", "https://mc.yandex.ru"]
     .filter(Boolean)
     .join(" ");
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' https://mc.yandex.ru`,
+    `script-src ${["'self'", `'nonce-${nonce}'`, developmentEval, "https://mc.yandex.ru"].filter(Boolean).join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
     `img-src ${imageSources}`,
     `connect-src ${connectSources}`,
