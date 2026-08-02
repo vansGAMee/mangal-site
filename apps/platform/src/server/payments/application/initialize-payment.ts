@@ -51,20 +51,23 @@ export async function initializePaymentAttempt(attemptId: string): Promise<Payme
         completedAt: new Date(),
       },
     });
+    await applyVerifiedPaymentState(attemptId, initialized);
     await db.paymentAttempt.update({
       where: { id: attemptId },
       data: {
-        externalPaymentId: initialized.externalPaymentId,
         providerRequestId: initialized.providerRequestId ?? null,
         confirmationType: initialized.confirmationType,
         confirmationUrl: initialized.confirmationUrl ?? null,
         confirmationData: initialized.confirmationData ?? null,
-        status: initialized.state === "SUCCEEDED" ? "SUCCEEDED" : "REQUIRES_ACTION",
         initializedAt: new Date(),
-        lastProviderStatus: initialized.providerStatus,
       },
     });
-    await applyVerifiedPaymentState(attemptId, initialized);
+    if (initialized.state === "PENDING") {
+      await db.paymentAttempt.updateMany({
+        where: { id: attemptId, status: { in: ["INITIALIZING", "PROCESSING"] } },
+        data: { status: "REQUIRES_ACTION" },
+      });
+    }
     await completePaymentOutbox(attemptId);
     endMetric();
     return existingConfirmation(attemptId);
@@ -110,6 +113,7 @@ async function buildInitialization(attemptId: string): Promise<{ provider: "YOOK
       order: {
         include: {
           items: { include: { fiscalSnapshot: true } },
+          deliveryFiscalSnapshot: true,
         },
       },
     },
@@ -137,23 +141,20 @@ async function buildInitialization(attemptId: string): Promise<{ provider: "YOOK
     };
   });
   if (order.deliveryFeeKopecks > 0) {
-    const deliveryFiscal = [
-      process.env.FISCAL_DELIVERY_VAT_CODE,
-      process.env.FISCAL_DELIVERY_PAYMENT_SUBJECT,
-      process.env.FISCAL_DELIVERY_PAYMENT_MODE,
-      process.env.FISCAL_DELIVERY_MEASURE,
-    ];
-    if (deliveryFiscal.some((value) => !value)) throw new Error("Delivery fiscal configuration is unavailable");
+    const deliveryFiscal = order.deliveryFiscalSnapshot;
+    if (!deliveryFiscal || deliveryFiscal.amountKopecks !== order.deliveryFeeKopecks) {
+      throw new Error("Delivery fiscal snapshot is unavailable");
+    }
     receiptItems.push({
-      name: "Доставка",
-      quantity: 1,
-      amountKopecks: order.deliveryFeeKopecks,
-      unitPriceKopecks: order.deliveryFeeKopecks,
-      vatCode: deliveryFiscal[0]!,
-      taxSystemCode: order.taxSystemSnapshot,
-      paymentSubject: deliveryFiscal[1]!,
-      paymentMode: deliveryFiscal[2]!,
-      measure: deliveryFiscal[3]!,
+      name: deliveryFiscal.fiscalName,
+      quantity: deliveryFiscal.quantity,
+      amountKopecks: deliveryFiscal.amountKopecks,
+      unitPriceKopecks: deliveryFiscal.unitPriceKopecks,
+      vatCode: deliveryFiscal.vatCode,
+      taxSystemCode: deliveryFiscal.taxSystemCode,
+      paymentSubject: deliveryFiscal.paymentSubject,
+      paymentMode: deliveryFiscal.paymentMode,
+      measure: deliveryFiscal.measure,
     });
   }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;

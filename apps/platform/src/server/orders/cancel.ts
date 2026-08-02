@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AuthenticatedAdmin } from "../admin/auth";
 import { db } from "../shared/db";
 
@@ -26,13 +26,17 @@ export async function requestOrderCancellation(input: { orderId: string; version
       await tx.order.update({ where: { id: order.id }, data: { fulfillmentStatus: "CANCEL_REQUESTED", paymentStatus: "REFUND_PENDING", version: { increment: 1 } } });
       await tx.outboxEvent.create({ data: { type: "REFUND_PAYMENT", aggregateType: "Refund", aggregateId: refundId, payload: { refundId } } });
       await tx.orderStatusHistory.create({ data: { orderId: order.id, fulfillmentStatus: "CANCEL_REQUESTED", paymentStatus: "REFUND_PENDING", actorType: "ADMIN", actorId: input.admin.id, reasonCode: "ADMIN_CANCELLATION" } });
-      await tx.adminAuditLog.create({ data: { adminUserId: input.admin.id, orderId: order.id, action: "ORDER_REFUND_REQUESTED", targetType: "Order", targetId: order.id, metadata: { reason: input.reason.trim(), refundId }, requestId: input.requestId } });
+      await tx.adminAuditLog.create({ data: { adminUserId: input.admin.id, orderId: order.id, action: "ORDER_REFUND_REQUESTED", targetType: "Order", targetId: order.id, metadata: { reasonSha256: reasonHash(input.reason), refundId }, requestId: input.requestId } });
       return { asynchronous: true, refundId };
     }
 
     await tx.order.update({ where: { id: order.id }, data: { fulfillmentStatus: "CANCELED", version: { increment: 1 } } });
     await tx.orderStatusHistory.create({ data: { orderId: order.id, fulfillmentStatus: "CANCELED", paymentStatus: order.paymentStatus, actorType: "ADMIN", actorId: input.admin.id, reasonCode: "ADMIN_CANCELLATION" } });
-    await tx.adminAuditLog.create({ data: { adminUserId: input.admin.id, orderId: order.id, action: "ORDER_CANCELED", targetType: "Order", targetId: order.id, metadata: { reason: input.reason.trim() }, requestId: input.requestId } });
+    await tx.adminAuditLog.create({ data: { adminUserId: input.admin.id, orderId: order.id, action: "ORDER_CANCELED", targetType: "Order", targetId: order.id, metadata: { reasonSha256: reasonHash(input.reason) }, requestId: input.requestId } });
     return { asynchronous: false, refundId: null };
   });
+}
+
+function reasonHash(reason: string): string {
+  return createHash("sha256").update(reason.trim(), "utf8").digest("hex");
 }

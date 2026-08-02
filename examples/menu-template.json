@@ -1,0 +1,24 @@
+[
+  {
+    "category": "Основное",
+    "name": "Название блюда",
+    "description": "Подтверждённое описание блюда",
+    "price": "350.00",
+    "oldPrice": null,
+    "weight": null,
+    "image": "/images/product-placeholder.svg",
+    "available": true,
+    "sortOrder": 10
+  },
+  {
+    "category": "Сезонное",
+    "name": "Позиция без цены",
+    "description": null,
+    "price": null,
+    "oldPrice": null,
+    "weight": null,
+    "image": "/images/product-placeholder.svg",
+    "available": false,
+    "sortOrder": 20
+  }
+]

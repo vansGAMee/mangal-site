@@ -7,7 +7,7 @@ export async function readiness(): Promise<{ ready: boolean; checks: Record<stri
     await db.$queryRaw`SELECT 1`;
     checks.database = true;
     const sentinel = await db.migrationSentinel.findUnique({ where: { id: 1 } });
-    checks.migrations = Boolean(sentinel);
+    checks.migrations = sentinel?.version === "202608020001_productization";
     await Promise.all([db.order.count({ take: 1 }), db.paymentAttempt.count({ take: 1 }), db.outboxEvent.count({ take: 1 }), db.legalConsent.count({ take: 1 })]);
     checks.criticalTables = true;
     if (process.env.PII_KEY_RING_JSON) { new PiiCipher(process.env.PII_KEY_RING_JSON); checks.encryption = true; }

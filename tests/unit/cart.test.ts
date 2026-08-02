@@ -24,7 +24,7 @@ describe("PII-free cart", () => {
     expect(mergeCartItems([base], { ...base, unit: "PORTION" })).toHaveLength(2);
   });
   it("persists only safe cart fields", async () => {
-    useCart.getState().add(base);
+    useCart.getState().add({ ...base, phone: "+79990000000" } as CartLine);
     await new Promise((resolve) => setTimeout(resolve, 0));
     const stored = mockStorage.getItem("mangal-cart") ?? "";
     expect(stored).toContain("productId"); expect(stored).not.toMatch(/phone|email|address|comment|checkout/i);

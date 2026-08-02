@@ -1,11 +1,12 @@
 import { z } from "zod";
 
-const optionalTrimmed = z.string().trim().min(1).optional();
-const positiveInt = z.coerce.number().int().positive();
+const blankToUndefined = (value: unknown) => typeof value === "string" && value.trim() === "" ? undefined : value;
+const optionalTrimmed = z.preprocess(blankToUndefined, z.string().trim().min(1).optional());
+const positiveInt = z.preprocess(blankToUndefined, z.coerce.number().int().positive());
 
 const RuntimeEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  DATABASE_URL: z.string().url().default("postgresql://postgres:postgres@localhost:5432/mangal_dev"),
+  DATABASE_URL: z.string().url(),
   DATABASE_POOL_MAX: positiveInt.default(5),
   DATABASE_CONNECT_TIMEOUT_MS: positiveInt.default(5_000),
   DATABASE_STATEMENT_TIMEOUT_MS: positiveInt.default(10_000),
@@ -15,6 +16,13 @@ const RuntimeEnvSchema = z.object({
   MFA_ENCRYPTION_KEY: optionalTrimmed,
   CSRF_HMAC_KEY: optionalTrimmed,
   INTERNAL_JOBS_TOKEN: optionalTrimmed,
+  STORAGE_DRIVER: z.enum(["local", "vercel-blob"]).default("local"),
+  LOCAL_MEDIA_ROOT: optionalTrimmed,
+  MEDIA_PUBLIC_BASE_URL: z.string().url().optional(),
+  BLOB_READ_WRITE_TOKEN: optionalTrimmed,
+  IMAGE_MAX_BYTES: positiveInt.default(5 * 1024 * 1024),
+  DEMO_MODE: z.stringbool().default(false),
+  DEMO_RESET_SECRET: optionalTrimmed,
   ALLOWED_STOREFRONT_ORIGINS: optionalTrimmed,
   PERSONAL_DATA_LEGAL_BASIS: z.enum(["CONTRACT", "CONSENT"]).default("CONTRACT"),
   PAYMENT_HTTP_TIMEOUT_MS: positiveInt.default(8_000),
@@ -42,4 +50,9 @@ export function allowedStorefrontOrigins(): Set<string> {
       .map((origin) => origin.trim())
       .filter(Boolean),
   );
+}
+
+export function clearRuntimeEnvCacheForTests(): void {
+  if (process.env.NODE_ENV !== "test") throw new Error("Runtime env cache can only be cleared in tests");
+  cached = undefined;
 }

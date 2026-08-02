@@ -5,6 +5,7 @@ import { allowedStorefrontOrigins } from "../shared/env";
 
 export const MAX_CHECKOUT_BODY_BYTES = 32 * 1024;
 export const MAX_WEBHOOK_BODY_BYTES = 128 * 1024;
+export const MAX_ADMIN_JSON_BODY_BYTES = 64 * 1024;
 
 export function requestId(request: Request): string {
   const supplied = request.headers.get("x-request-id");
@@ -34,14 +35,50 @@ export function corsHeaders(origin: string, methods = "POST, OPTIONS"): HeadersI
 }
 
 export async function readLimitedBody(request: Request, limit: number): Promise<string> {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(await readLimitedBytes(request, limit));
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) throw error;
+    throw new MalformedBodyError();
+  }
+}
+
+export async function readJsonBody(request: Request, limit = MAX_ADMIN_JSON_BODY_BYTES): Promise<unknown> {
+  return JSON.parse(await readLimitedBody(request, limit)) as unknown;
+}
+
+export async function readLimitedBytes(request: Request, limit: number): Promise<Uint8Array> {
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (declaredLength > limit) throw new BodyTooLargeError();
-  const body = await request.text();
-  if (Buffer.byteLength(body, "utf8") > limit) throw new BodyTooLargeError();
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        throw new BodyTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   return body;
 }
 
 export class BodyTooLargeError extends Error {}
+export class MalformedBodyError extends Error {}
 
 export function clientIp(request: Request): string {
   const policy = process.env.TRUSTED_PROXY_POLICY;

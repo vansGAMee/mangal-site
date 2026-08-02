@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "cd ../.. && npm run prisma:generate && cd apps/platform && next build",
-    "db:push": "cd ../.. && npx prisma db push --accept-data-loss",
     "start": "next start --port 3001",
     "worker": "tsx src/entrypoints/worker.ts",
     "reconciliation": "tsx src/entrypoints/reconciliation.ts",

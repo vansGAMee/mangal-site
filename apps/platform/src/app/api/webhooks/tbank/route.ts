@@ -1,7 +1,7 @@
 import { runtimeEnv } from "@/server/shared/env";
 import { processTBankWebhook, WebhookVerificationError } from "@/server/payments/application/webhooks";
 import { verifyTBankToken } from "@/server/payments/infrastructure/tbank/token";
-import { BodyTooLargeError, MAX_WEBHOOK_BODY_BYTES, readLimitedBody, requestId } from "@/server/security/http";
+import { BodyTooLargeError, MalformedBodyError, MAX_WEBHOOK_BODY_BYTES, readLimitedBody, requestId } from "@/server/security/http";
 import { webhookVerificationFailures } from "@/server/observability/metrics";
 
 export async function POST(request: Request): Promise<Response> {
@@ -21,7 +21,7 @@ export async function POST(request: Request): Promise<Response> {
     });
   } catch (error) {
     if (error instanceof WebhookVerificationError) webhookVerificationFailures.inc({ provider: "TBANK" });
-    const status = error instanceof BodyTooLargeError ? 413 : error instanceof WebhookVerificationError || error instanceof SyntaxError ? 400 : 503;
+    const status = error instanceof BodyTooLargeError ? 413 : error instanceof WebhookVerificationError || error instanceof MalformedBodyError || error instanceof SyntaxError ? 400 : 503;
     return new Response("", { status, headers: { "Content-Type": "text/plain; charset=utf-8", "X-Request-Id": id } });
   }
 }

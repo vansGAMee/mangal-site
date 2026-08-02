@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 const COOKIE_NAME = "mangal_cookie_consent";
 
 export function CookieConsent() {
+  const reducedMotion = useReducedMotion();
   const [decision, setDecision] = useState<"accepted" | "necessary" | null | undefined>(undefined);
 
   useEffect(() => {
@@ -17,7 +18,7 @@ export function CookieConsent() {
   useEffect(() => {
     if (decision !== "accepted") return;
     const id = process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID;
-    if (!id || document.querySelector("script[data-mangal-metrika]")) return;
+    if (!id || !/^\d+$/.test(id) || document.querySelector("script[data-mangal-metrika]")) return;
     window.ym = window.ym ?? function (...args: unknown[]) { (window.ym!.a = window.ym!.a ?? []).push(args); };
     window.ym.l = Date.now();
     const script = document.createElement("script");
@@ -38,8 +39,8 @@ export function CookieConsent() {
     <AnimatePresence>
       {decision === null ? (
         <motion.section
-          initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 340, damping: 34 }}
+          initial={{ y: reducedMotion ? 0 : 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: reducedMotion ? 0 : 40, opacity: 0 }}
+          transition={reducedMotion ? { duration: 0.12 } : { type: "spring", stiffness: 340, damping: 34 }}
           className="fixed inset-x-0 bottom-0 z-[150] border-t border-white/15 bg-[#151516] p-4 shadow-[0_-18px_60px_rgba(0,0,0,.45)]"
           role="dialog" aria-label="Настройки cookie"
         >

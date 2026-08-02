@@ -34,7 +34,7 @@ function sameConfiguration(left: CartLine, right: CartLine): boolean {
 
 export function mergeCartItems(items: CartLine[], line: CartLine): CartLine[] {
   const index = items.findIndex((item) => sameConfiguration(item, line));
-  if (index < 0) return [...items, { ...line, modifierOptionIds: [...line.modifierOptionIds].sort() }];
+  if (index < 0) return [...items, sanitizeCartLine(line)];
   return items.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: item.quantity + line.quantity } : item);
 }
 
@@ -60,7 +60,7 @@ export const useCart = create<CartState>()(
         if (!persisted || typeof persisted !== "object") return { schemaVersion: CART_SCHEMA_VERSION, items: [] };
         const candidate = persisted as { items?: unknown };
         const items = Array.isArray(candidate.items)
-          ? candidate.items.filter(isSafeCartLine).map((line) => ({ ...line, modifierOptionIds: [...line.modifierOptionIds].sort() }))
+          ? candidate.items.filter(isSafeCartLine).map(sanitizeCartLine)
           : [];
         return { schemaVersion: CART_SCHEMA_VERSION, items };
       },
@@ -76,4 +76,13 @@ function isSafeCartLine(value: unknown): value is CartLine {
     && ["PIECE", "PORTION", "KILOGRAM"].includes(line.unit ?? "")
     && Array.isArray(line.modifierOptionIds)
     && line.modifierOptionIds.every((id) => typeof id === "string");
+}
+
+function sanitizeCartLine(line: CartLine): CartLine {
+  return {
+    productId: line.productId,
+    quantity: line.quantity,
+    unit: line.unit,
+    modifierOptionIds: [...line.modifierOptionIds].sort(),
+  };
 }

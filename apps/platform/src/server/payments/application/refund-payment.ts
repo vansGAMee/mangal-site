@@ -10,7 +10,15 @@ export async function processRefund(refundId: string): Promise<void> {
   if (!claimed.count) return;
   const refund = await db.refund.findUniqueOrThrow({
     where: { id: refundId },
-    include: { paymentAttempt: true, order: { include: { items: { include: { fiscalSnapshot: true } } } } },
+    include: {
+      paymentAttempt: true,
+      order: {
+        include: {
+          items: { include: { fiscalSnapshot: true } },
+          deliveryFiscalSnapshot: true,
+        },
+      },
+    },
   });
   if (!refund.paymentAttempt.externalPaymentId) return markUnknown(refund.id, "payment_id_missing");
   const receipt = buildRefundReceipt(refund.order);
@@ -50,7 +58,39 @@ export async function reconcileRefund(refundId: string): Promise<void> {
   }
 }
 
-function buildRefundReceipt(order: { id: string; phoneEncrypted: unknown; emailEncrypted: unknown; taxSystemSnapshot: string; deliveryFeeKopecks: number; items: Array<{ fiscalSnapshot: { fiscalName: string; quantity: number; amountKopecks: number; unitPriceKopecks: number; vatCode: string; taxSystemCode: string; paymentSubject: string; paymentMode: string; measure: string } | null }> }) {
+type RefundReceiptOrder = {
+  id: string;
+  phoneEncrypted: unknown;
+  emailEncrypted: unknown;
+  taxSystemSnapshot: string;
+  deliveryFeeKopecks: number;
+  items: Array<{
+    fiscalSnapshot: {
+      fiscalName: string;
+      quantity: number;
+      amountKopecks: number;
+      unitPriceKopecks: number;
+      vatCode: string;
+      taxSystemCode: string;
+      paymentSubject: string;
+      paymentMode: string;
+      measure: string;
+    } | null;
+  }>;
+  deliveryFiscalSnapshot: {
+    fiscalName: string;
+    quantity: number;
+    amountKopecks: number;
+    unitPriceKopecks: number;
+    vatCode: string;
+    taxSystemCode: string;
+    paymentSubject: string;
+    paymentMode: string;
+    measure: string;
+  } | null;
+};
+
+function buildRefundReceipt(order: RefundReceiptOrder) {
   const env = runtimeEnv();
   if (!env.PII_KEY_RING_JSON) throw new Error("PII encryption is unavailable");
   const cipher = new PiiCipher(env.PII_KEY_RING_JSON);
@@ -61,9 +101,21 @@ function buildRefundReceipt(order: { id: string; phoneEncrypted: unknown; emailE
     return { name: fiscalSnapshot.fiscalName, quantity: fiscalSnapshot.quantity, amountKopecks: fiscalSnapshot.amountKopecks, unitPriceKopecks: fiscalSnapshot.unitPriceKopecks, vatCode: fiscalSnapshot.vatCode, taxSystemCode: fiscalSnapshot.taxSystemCode, paymentSubject: fiscalSnapshot.paymentSubject, paymentMode: fiscalSnapshot.paymentMode, measure: fiscalSnapshot.measure };
   });
   if (order.deliveryFeeKopecks > 0) {
-    const fiscal = [process.env.FISCAL_DELIVERY_VAT_CODE, process.env.FISCAL_DELIVERY_PAYMENT_SUBJECT, process.env.FISCAL_DELIVERY_PAYMENT_MODE, process.env.FISCAL_DELIVERY_MEASURE];
-    if (fiscal.some((value) => !value)) throw new Error("Delivery fiscal configuration is unavailable");
-    items.push({ name: "Доставка", quantity: 1, amountKopecks: order.deliveryFeeKopecks, unitPriceKopecks: order.deliveryFeeKopecks, vatCode: fiscal[0]!, taxSystemCode: order.taxSystemSnapshot, paymentSubject: fiscal[1]!, paymentMode: fiscal[2]!, measure: fiscal[3]! });
+    const fiscal = order.deliveryFiscalSnapshot;
+    if (!fiscal || fiscal.amountKopecks !== order.deliveryFeeKopecks) {
+      throw new Error("Delivery fiscal snapshot is unavailable");
+    }
+    items.push({
+      name: fiscal.fiscalName,
+      quantity: fiscal.quantity,
+      amountKopecks: fiscal.amountKopecks,
+      unitPriceKopecks: fiscal.unitPriceKopecks,
+      vatCode: fiscal.vatCode,
+      taxSystemCode: fiscal.taxSystemCode,
+      paymentSubject: fiscal.paymentSubject,
+      paymentMode: fiscal.paymentMode,
+      measure: fiscal.measure,
+    });
   }
   return { customer: email ? { phone, email } : { phone }, taxSystemCode: order.taxSystemSnapshot, items };
 }
