@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser QA and Handoff"
+  short_description: "Verify restaurant ordering flows in a browser"
+  default_prompt: "Use $browser-qa-and-handoff to test storefront, checkout, and admin before handoff."

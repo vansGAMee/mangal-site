@@ -1,0 +1,4 @@
+interface:
+  display_name: "VK Outreach Human Review"
+  short_description: "Prepare one-at-a-time VK outreach with approval"
+  default_prompt: "Use $vk-outreach-human-review to draft one VK message and wait for explicit approval."

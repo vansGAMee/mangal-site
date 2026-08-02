@@ -1,0 +1,4 @@
+interface:
+  display_name: "Restaurant Site Productization"
+  short_description: "Turn one restaurant site into a reusable product"
+  default_prompt: "Use $restaurant-site-productization to extract tenant configuration without creating SaaS complexity."

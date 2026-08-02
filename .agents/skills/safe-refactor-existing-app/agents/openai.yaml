@@ -1,0 +1,4 @@
+interface:
+  display_name: "Safe Existing App Refactor"
+  short_description: "Refactor existing apps with minimal risk"
+  default_prompt: "Use $safe-refactor-existing-app to make a minimal verified change."

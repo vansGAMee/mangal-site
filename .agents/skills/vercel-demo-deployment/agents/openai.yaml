@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vercel Demo Deployment"
+  short_description: "Prepare a safe non-PII restaurant demo"
+  default_prompt: "Use $vercel-demo-deployment to prepare and verify a safe Vercel demo."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Existing Project Audit"
+  short_description: "Audit existing restaurant apps safely"
+  default_prompt: "Use $existing-project-audit to inspect this repository before changing code."
