@@ -27,6 +27,7 @@
     "launch-check": "tsx apps/platform/src/entrypoints/launch-check.ts",
     "legal:hashes": "tsx scripts/legal-hashes.ts",
     "check:encoding": "node scripts/encoding-check.mjs",
+    "skills:validate": "node scripts/validate-repository-skills.mjs",
     "admin:bootstrap": "tsx apps/platform/src/entrypoints/bootstrap-admin.ts",
     "start": "node scripts/start-all.mjs",
     "start:all": "node scripts/start-all.mjs",

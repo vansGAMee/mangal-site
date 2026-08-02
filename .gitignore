@@ -5,10 +5,13 @@ coverage/
 playwright-report/
 test-results/
 .env
+.env.txt
+.env.*.txt
 .env.local
 .env.*.local
 !.env.example
 *.log
+*.tsbuildinfo
 .DS_Store
 src/generated/prisma/
 apps/platform/src/generated/prisma/

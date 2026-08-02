@@ -1,0 +1,4 @@
+interface:
+  display_name: "Database Migrations and Seeding"
+  short_description: "Safely migrate, seed, and import restaurant data"
+  default_prompt: "Use $database-migrations-and-seeding to plan a safe migration or repeatable seed."

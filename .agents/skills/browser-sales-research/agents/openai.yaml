@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser Sales Research"
+  short_description: "Research qualified restaurant leads without outreach"
+  default_prompt: "Use $browser-sales-research to collect evidence-backed restaurant leads without messaging them."

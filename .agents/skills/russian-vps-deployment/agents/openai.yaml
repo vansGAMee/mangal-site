@@ -1,0 +1,4 @@
+interface:
+  display_name: "Russian VPS Deployment"
+  short_description: "Deploy restaurant ordering on a Russian VPS"
+  default_prompt: "Use $russian-vps-deployment to prepare a Docker VPS release with backups."
