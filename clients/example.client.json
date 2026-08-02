@@ -1,0 +1,17 @@
+{
+  "slug": "primer-kafe",
+  "name": "Пример кафе",
+  "description": "Демонстрационное описание. Замените его подтверждённым текстом клиента.",
+  "phone": "+79990000000",
+  "phoneDisplay": "+7 999 000-00-00",
+  "address": "Укажите подтверждённый адрес клиента",
+  "adminEmail": "owner@example.invalid",
+  "adminPasswordEnv": "CLIENT_ADMIN_PASSWORD",
+  "theme": "cafe-light",
+  "primaryColor": "#B53A1A",
+  "secondaryColor": "#7A5B32",
+  "minimumOrderKopecks": null,
+  "deliveryFeeKopecks": null,
+  "timezone": "Europe/Moscow",
+  "menuPath": "../examples/menu-template.csv"
+}

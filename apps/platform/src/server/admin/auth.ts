@@ -120,11 +120,16 @@ export async function grantRoutingReauth(admin: AuthenticatedAdmin, password: st
 }
 
 export async function consumeRoutingReauth(admin: AuthenticatedAdmin, nonce: string): Promise<void> {
-  const session = await db.adminSession.findUniqueOrThrow({ where: { id: admin.sessionId } });
-  if (!session.reauthUntil || session.reauthUntil <= new Date() || !session.reauthNonceHash || !secureTokenEquals(session.reauthNonceHash, sessionHash(nonce))) {
-    throw new AdminAuthError("invalid_credentials");
-  }
-  await db.adminSession.update({ where: { id: session.id }, data: { reauthUntil: null, reauthNonceHash: null } });
+  const consumed = await db.adminSession.updateMany({
+    where: {
+      id: admin.sessionId,
+      revokedAt: null,
+      reauthUntil: { gt: new Date() },
+      reauthNonceHash: sessionHash(nonce),
+    },
+    data: { reauthUntil: null, reauthNonceHash: null },
+  });
+  if (consumed.count !== 1) throw new AdminAuthError("invalid_credentials");
 }
 
 export function sessionCookies(token: string, csrfToken: string): string[] {

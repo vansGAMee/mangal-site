@@ -1,0 +1,76 @@
+{
+  "categories": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "slug": "osnovnoe",
+      "name": "Основное",
+      "products": [
+        {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "slug": "testovaya-pozitsiya",
+          "name": "Тестовая позиция",
+          "compositionText": null,
+          "portionNote": null,
+          "pricingType": "FIXED",
+          "saleUnit": "PIECE",
+          "basePriceKopecks": 10000,
+          "oldPriceKopecks": null,
+          "unitPriceKopecks": null,
+          "priceUnitGrams": null,
+          "weightGrams": null,
+          "displayPriceLabel": "100 ₽",
+          "requiresPriceConfirmation": false,
+          "isOrderable": true,
+          "isAvailable": true,
+          "imagePath": "/images/product-placeholder.svg",
+          "position": 0,
+          "modifiers": []
+        }
+      ]
+    }
+  ],
+  "store": {
+    "profile": {
+      "slug": "build-test",
+      "name": "Проверка сборки",
+      "description": "Непубличный fixture для проверки production-сборки storefront.",
+      "logoPath": null,
+      "faviconPath": null,
+      "heroImagePath": null,
+      "theme": "MANGAL_DARK",
+      "primaryColor": "#E04E1B",
+      "secondaryColor": "#C89D5C",
+      "backgroundColor": "#0D0D0E",
+      "foregroundColor": "#F4F1EA",
+      "phoneDisplay": null,
+      "phoneHref": null,
+      "email": null,
+      "address": null,
+      "latitude": null,
+      "longitude": null,
+      "vkUrl": null,
+      "telegramUrl": null,
+      "whatsappUrl": null,
+      "currency": "RUB",
+      "timezone": "Europe/Moscow",
+      "seoTitle": "Проверка сборки storefront",
+      "seoDescription": "Непубличный fixture для проверки production-сборки storefront.",
+      "legalName": null,
+      "legalInn": null,
+      "legalRegistrationNo": null,
+      "legalAddress": null,
+      "privacyPolicyPath": "/legal/privacy",
+      "deliveryEnabled": false,
+      "pickupEnabled": false,
+      "pickupLabel": null
+    },
+    "phoneDisplay": null,
+    "phoneHref": null,
+    "leadTimeMinutes": 15,
+    "personalDataLegalBasis": "CONTRACT",
+    "deliveryEnabled": false,
+    "pickupEnabled": false,
+    "pickupLabel": null,
+    "deliveryZones": []
+  }
+}

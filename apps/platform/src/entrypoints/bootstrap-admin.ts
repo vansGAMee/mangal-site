@@ -27,6 +27,7 @@ async function main() {
       mfaRequired: true,
       totpCredential: { create: { secretEncrypted: cipher.encrypt(secret.base32, associatedData(userId, "totp")) } },
       recoveryCodes: { create: await Promise.all(recoveryCodes.map(async (code) => ({ codeHash: await hash(code) }))) },
+      permissions: { create: { code: "REFUND_ORDER" } },
     },
   });
   process.stdout.write(`MFA enrollment URI (shown once):\n${totp.toString()}\nRecovery codes (shown once):\n${recoveryCodes.join("\n")}\n`);

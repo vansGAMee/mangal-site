@@ -1,2 +1,18 @@
 import type { MetadataRoute } from "next";
-export default function manifest(): MetadataRoute.Manifest { return { name: "МАНГАЛ — доставка", short_name: "МАНГАЛ", description: "Каталог и заказ доставки", start_url: "/", display: "standalone", background_color: "#0D0D0E", theme_color: "#0D0D0E", lang: "ru", icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }] }; }
+import { fetchCatalog } from "@/lib/catalog";
+
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const { store } = await fetchCatalog();
+  const profile = store.profile;
+  return {
+    name: `${profile.name} — заказ еды`,
+    short_name: profile.name,
+    description: profile.seoDescription,
+    start_url: "/",
+    display: "standalone",
+    background_color: profile.backgroundColor,
+    theme_color: profile.backgroundColor,
+    lang: "ru",
+    icons: [{ src: profile.faviconPath ?? "/icon.svg", sizes: "any" }],
+  };
+}

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient, type Prisma } from "../generated/prisma/client";
 import {
   CATEGORY_SEED,
   MODIFIER_GROUP_SEED,
@@ -14,36 +14,137 @@ import {
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required to seed PostgreSQL");
 
+const replaceCatalog = process.argv.includes("--replace-catalog");
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 2 }) });
 
-async function sha256File(path: string): Promise<string> {
-  return createHash("sha256").update(await readFile(path)).digest("hex");
+type LegalDraft = {
+  type: "PERSONAL_DATA" | "MARKETING" | "COOKIE" | "OFFER" | "TERMS";
+  version: string;
+  filePath: string;
+  documentPath: string;
+  contentSha256: string;
+};
+
+async function legalDrafts(): Promise<LegalDraft[]> {
+  const documents = [
+    { type: "PERSONAL_DATA" as const, version: "pd-v1", filePath: "docs/legal/pd-v1.md", documentPath: "/legal/privacy" },
+    { type: "MARKETING" as const, version: "marketing-v1", filePath: "docs/legal/marketing-v1.md", documentPath: "/legal/marketing" },
+    { type: "COOKIE" as const, version: "cookie-v1", filePath: "docs/legal/cookie-v1.md", documentPath: "/legal/cookies" },
+    { type: "OFFER" as const, version: "offer-v1", filePath: "docs/legal/offer-v1.md", documentPath: "/legal/offer" },
+    { type: "TERMS" as const, version: "terms-v1", filePath: "docs/legal/terms-v1.md", documentPath: "/legal/terms" },
+  ];
+  return Promise.all(documents.map(async (document) => ({
+    ...document,
+    contentSha256: createHash("sha256").update(await readFile(resolve(document.filePath))).digest("hex"),
+  })));
 }
 
-async function seedCatalog(): Promise<void> {
-  for (const category of CATEGORY_SEED) {
-    await prisma.category.upsert({
-      where: { slug: category.slug },
+async function main(): Promise<void> {
+  const drafts = await legalDrafts();
+  await prisma.$transaction(async (tx) => {
+    const [categoryCount, productCount, modifierGroupCount] = await Promise.all([
+      tx.category.count(),
+      tx.product.count(),
+      tx.modifierGroup.count(),
+    ]);
+    const catalogIsEmpty = categoryCount === 0 && productCount === 0 && modifierGroupCount === 0;
+    const catalogIsComplete =
+      productCount === PRODUCT_SEED.length &&
+      categoryCount >= CATEGORY_SEED.length &&
+      modifierGroupCount >= MODIFIER_GROUP_SEED.length;
+    if (!catalogIsEmpty && !catalogIsComplete && !replaceCatalog) {
+      throw new Error(
+        "Catalog is partially populated. Refusing to overwrite operator edits; inspect it or rerun with --replace-catalog explicitly.",
+      );
+    }
+
+    await tx.restaurantProfile.upsert({
+      where: { id: "singleton" },
       create: {
-        slug: category.slug,
-        name: category.name,
-        position: category.sortOrder,
+        id: "singleton",
+        slug: "mangal",
+        name: "МАНГАЛ",
+        description: "Онлайн-меню заведения «МАНГАЛ».",
+        theme: "MANGAL_DARK",
+        primaryColor: "#E04E1B",
+        secondaryColor: "#C89D5C",
+        backgroundColor: "#0D0D0E",
+        foregroundColor: "#F4F1EA",
+        phoneDisplay: STORE_SEED.phoneDisplay,
+        phoneHref: STORE_SEED.phoneHref,
+        currency: "RUB",
+        timezone: "Europe/Saratov",
+        seoTitle: "МАНГАЛ — онлайн-меню",
+        seoDescription: "Актуальное меню заведения «МАНГАЛ». Способы получения настраиваются оператором.",
+        privacyPolicyPath: "/legal/privacy",
+        deliveryEnabled: false,
+        pickupEnabled: false,
       },
-      update: {
-        name: category.name,
-        position: category.sortOrder,
-        isActive: true,
-      },
+      update: {},
     });
+    await tx.storeSettings.upsert({
+      where: { id: "singleton" },
+      create: {
+        id: "singleton",
+        ...STORE_SEED,
+        legalBasis: process.env.PERSONAL_DATA_LEGAL_BASIS === "CONSENT" ? "CONSENT" : "CONTRACT",
+        taxSystemCode: null,
+      },
+      update: {},
+    });
+
+    for (const draft of drafts) {
+      const existing = await tx.legalDocumentVersion.findUnique({
+        where: { type_version: { type: draft.type, version: draft.version } },
+      });
+      if (existing && existing.contentSha256 !== draft.contentSha256) {
+        throw new Error(
+          `Legal document ${draft.type}/${draft.version} changed. Create a new version instead of mutating immutable consent evidence.`,
+        );
+      }
+      if (!existing) {
+        await tx.legalDocumentVersion.create({
+          data: {
+            type: draft.type,
+            version: draft.version,
+            documentPath: draft.documentPath,
+            contentSha256: draft.contentSha256,
+            approved: false,
+          },
+        });
+      }
+    }
+
+    if (catalogIsEmpty || replaceCatalog) {
+      await seedCatalog(tx, replaceCatalog);
+    } else {
+      const existingSlugs = new Set((await tx.product.findMany({ select: { slug: true } })).map((product) => product.slug));
+      const missing = PRODUCT_SEED.filter((product) => !existingSlugs.has(product.slug));
+      if (missing.length) {
+        throw new Error(`Existing catalog has ${productCount} products but misses seed slugs: ${missing.map((item) => item.slug).join(", ")}`);
+      }
+    }
+  }, { timeout: 60_000 });
+}
+
+async function seedCatalog(tx: Prisma.TransactionClient, replace: boolean): Promise<void> {
+  const categoryIds = new Map<string, string>();
+  for (const category of CATEGORY_SEED) {
+    const stored = await tx.category.upsert({
+      where: { slug: category.slug },
+      create: { slug: category.slug, name: category.name, position: category.sortOrder },
+      update: replace ? { name: category.name, position: category.sortOrder, isActive: true } : {},
+    });
+    categoryIds.set(category.slug, stored.id);
   }
 
-  const categories = await prisma.category.findMany();
-  const categoryIds = new Map(categories.map((category) => [category.slug, category.id]));
-
+  const productIds = new Map<string, string>();
+  const positions = new Map<string, number>();
   for (const product of PRODUCT_SEED) {
     const categoryId = categoryIds.get(product.categorySlug);
     if (!categoryId) throw new Error(`Unknown seed category ${product.categorySlug}`);
-
+    const position = positions.get(product.categorySlug) ?? 0;
+    positions.set(product.categorySlug, position + 1);
     const data = {
       categoryId,
       name: product.name,
@@ -52,6 +153,7 @@ async function seedCatalog(): Promise<void> {
       pricingType: product.pricingType,
       saleUnit: product.saleUnit,
       basePriceKopecks: product.basePriceKopecks ?? null,
+      oldPriceKopecks: null,
       unitPriceKopecks: product.unitPriceKopecks ?? null,
       priceUnitGrams: product.priceUnitGrams ?? null,
       weightGrams: product.weightGrams ?? null,
@@ -60,21 +162,22 @@ async function seedCatalog(): Promise<void> {
       isOrderable: product.isOrderable ?? true,
       isAvailable: true,
       imagePath: "/images/product-placeholder.svg",
-      fiscalVatCode: "1",
-      fiscalPaymentSubject: "1",
-      fiscalPaymentMode: "1",
-      fiscalMeasure: "1",
+      position,
+      fiscalVatCode: null,
+      fiscalPaymentSubject: null,
+      fiscalPaymentMode: null,
+      fiscalMeasure: null,
     } as const;
-
-    await prisma.product.upsert({
+    const stored = await tx.product.upsert({
       where: { slug: product.slug },
       create: { slug: product.slug, ...data },
-      update: data,
+      update: replace ? { ...data, version: { increment: 1 } } : {},
     });
+    productIds.set(product.slug, stored.id);
   }
 
   for (const [groupPosition, groupSeed] of MODIFIER_GROUP_SEED.entries()) {
-    const group = await prisma.modifierGroup.upsert({
+    const group = await tx.modifierGroup.upsert({
       where: { slug: groupSeed.key },
       create: {
         slug: groupSeed.key,
@@ -86,20 +189,21 @@ async function seedCatalog(): Promise<void> {
         maxSelect: groupSeed.maxSelect,
         position: groupPosition,
       },
-      update: {
-        name: groupSeed.name,
-        kind: groupSeed.kind,
-        selectionMode: groupSeed.selectionMode,
-        required: groupSeed.required,
-        minSelect: groupSeed.minSelect,
-        maxSelect: groupSeed.maxSelect,
-        position: groupPosition,
-        isActive: true,
-      },
+      update: replace
+        ? {
+            name: groupSeed.name,
+            kind: groupSeed.kind,
+            selectionMode: groupSeed.selectionMode,
+            required: groupSeed.required,
+            minSelect: groupSeed.minSelect,
+            maxSelect: groupSeed.maxSelect,
+            position: groupPosition,
+            isActive: true,
+          }
+        : {},
     });
-
     for (const [optionPosition, option] of groupSeed.options.entries()) {
-      await prisma.modifierOption.upsert({
+      await tx.modifierOption.upsert({
         where: { groupId_slug: { groupId: group.id, slug: option.key } },
         create: {
           groupId: group.id,
@@ -108,128 +212,34 @@ async function seedCatalog(): Promise<void> {
           priceDeltaKopecks: option.priceDeltaKopecks,
           position: optionPosition,
         },
-        update: {
-          name: option.name,
-          priceDeltaKopecks: option.priceDeltaKopecks,
-          position: optionPosition,
-          isAvailable: true,
-        },
+        update: replace
+          ? {
+              name: option.name,
+              priceDeltaKopecks: option.priceDeltaKopecks,
+              position: optionPosition,
+              isAvailable: true,
+            }
+          : {},
       });
     }
-
-    const products = await prisma.product.findMany({
-      where: { slug: { in: [...groupSeed.productSlugs] } },
-      select: { id: true, slug: true },
-    });
-    if (products.length !== groupSeed.productSlugs.length) {
-      throw new Error(`Modifier group ${groupSeed.key} references a missing product`);
-    }
-
-    await prisma.productModifierGroup.deleteMany({ where: { modifierGroupId: group.id } });
-    await prisma.productModifierGroup.createMany({
-      data: products.map((product) => ({
-        productId: product.id,
-        modifierGroupId: group.id,
-        position: groupPosition,
-      })),
-    });
-  }
-}
-
-async function seedLegalDrafts(): Promise<void> {
-  const documents = [
-    { type: "PERSONAL_DATA" as const, version: "pd-v1", path: "docs/legal/pd-v1.md" },
-    { type: "MARKETING" as const, version: "marketing-v1", path: "docs/legal/marketing-v1.md" },
-    { type: "COOKIE" as const, version: "cookie-v1", path: "docs/legal/cookie-v1.md" },
-    { type: "OFFER" as const, version: "offer-v1", path: "docs/legal/offer-v1.md" },
-    { type: "TERMS" as const, version: "terms-v1", path: "docs/legal/terms-v1.md" },
-  ];
-
-  for (const document of documents) {
-    const contentSha256 = await sha256File(resolve(document.path));
-    const existing = await prisma.legalDocumentVersion.findUnique({
-      where: { type_version: { type: document.type, version: document.version } },
-      select: { approved: true, contentSha256: true },
-    });
-    await prisma.legalDocumentVersion.upsert({
-      where: { type_version: { type: document.type, version: document.version } },
-      create: {
-        type: document.type,
-        version: document.version,
-        documentPath: `/${document.path}`,
-        contentSha256,
-        approved: false,
-      },
-      update: {
-        documentPath: `/${document.path}`,
-        contentSha256,
-        approved: existing?.contentSha256 === contentSha256 ? existing.approved : false,
-        ...(existing?.contentSha256 !== contentSha256 ? { activeFrom: null } : {}),
-      },
-    });
-  }
-}
-
-async function main(): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await tx.storeSettings.upsert({
-      where: { id: "singleton" },
-      create: {
-        id: "singleton",
-        ...STORE_SEED,
-        legalBasis: process.env.PERSONAL_DATA_LEGAL_BASIS === "CONSENT" ? "CONSENT" : "CONTRACT",
-        taxSystemCode: "0",
-      },
-      update: {
-        ...STORE_SEED,
-        taxSystemCode: "0",
-      },
-    });
-    await tx.migrationSentinel.upsert({
-      where: { id: 1 },
-      create: { id: 1, version: "202608010001_initial" },
-      update: { version: "202608010001_initial" },
-    });
-    await tx.deliveryZone.upsert({
-      where: { id: "ad72a135-8f23-4c9d-9db5-b64fb440e23f" },
-      create: {
-        id: "ad72a135-8f23-4c9d-9db5-b64fb440e23f",
-        name: "Центр (Саратов)",
-        city: "Саратов",
-        feeKopecks: 20000,
-        isActive: true,
-      },
-      update: {
-        name: "Центр (Саратов)",
-        city: "Саратов",
-        feeKopecks: 20000,
-        isActive: true,
-      },
-    });
-    await tx.paymentRouting.upsert({
-      where: { method: "CARD" },
-      create: { method: "CARD", provider: "YOOKASSA", isActive: true },
-      update: { provider: "YOOKASSA", isActive: true },
-    });
-    await tx.paymentRouting.upsert({
-      where: { method: "SBP" },
-      create: { method: "SBP", provider: "TBANK", isActive: true },
-      update: { provider: "TBANK", isActive: true },
-    });
-    for (let day = 0; day <= 6; day++) {
-      await tx.operatingHours.upsert({
-        where: { weekday: day },
-        create: { weekday: day, opensAt: "00:00", closesAt: "23:59", isClosed: false, slotLength: 15 },
-        update: { opensAt: "00:00", closesAt: "23:59", isClosed: false, slotLength: 15 },
+    if (replace) await tx.productModifierGroup.deleteMany({ where: { modifierGroupId: group.id } });
+    for (const productSlug of groupSeed.productSlugs) {
+      const productId = productIds.get(productSlug);
+      if (!productId) throw new Error(`Modifier group ${groupSeed.key} references missing product ${productSlug}`);
+      await tx.productModifierGroup.upsert({
+        where: { productId_modifierGroupId: { productId, modifierGroupId: group.id } },
+        create: { productId, modifierGroupId: group.id, position: groupPosition },
+        update: replace ? { position: groupPosition } : {},
       });
     }
-  });
-  await seedCatalog();
-  await seedLegalDrafts();
+  }
 }
 
 main()
-  .then(async () => prisma.$disconnect())
+  .then(async () => {
+    process.stdout.write(`Seed complete: ${PRODUCT_SEED.length} menu products; production-only values remain unset.\n`);
+    await prisma.$disconnect();
+  })
   .catch(async (error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : "Seed failed"}\n`);
     await prisma.$disconnect();

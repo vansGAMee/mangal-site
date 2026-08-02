@@ -1,112 +1,139 @@
-import { fetchCatalog } from "@/lib/catalog";
+import Image from "next/image";
+import { headers } from "next/headers";
 import { MenuExplorer } from "@/components/menu-explorer";
+import { fetchCatalog } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const catalog = await fetchCatalog();
+  const profile = catalog.store.profile;
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const restaurantJsonLd = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
-    name: "МАНГАЛ",
-    url: process.env.NEXT_PUBLIC_SITE_URL,
-    telephone: catalog.store.phoneHref,
-    hasMenu: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/#menu`,
+    name: profile.name,
+    url: siteUrl,
+    ...(profile.phoneHref ? { telephone: profile.phoneHref } : {}),
+    ...(profile.email ? { email: profile.email } : {}),
+    ...(profile.address
+      ? { address: { "@type": "PostalAddress", streetAddress: profile.address } }
+      : {}),
+    hasMenu: `${siteUrl}/#menu`,
   };
   const menuJsonLd = {
     "@context": "https://schema.org",
     "@type": "Menu",
-    name: "Меню «МАНГАЛ»",
+    name: `Меню «${profile.name}»`,
     hasMenuSection: catalog.categories.map((category) => ({
-      "@type": "MenuSection", name: category.name,
-      hasMenuItem: category.products.map((product) => ({ "@type": "MenuItem", name: product.name, description: product.compositionText ?? undefined })),
+      "@type": "MenuSection",
+      name: category.name,
+      hasMenuItem: category.products.map((product) => ({
+        "@type": "MenuItem",
+        name: product.name,
+        ...(product.compositionText ? { description: product.compositionText } : {}),
+        ...productOffer(product, profile.currency),
+      })),
     })),
   };
-  return <>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(restaurantJsonLd).replace(/</g, "\\u003c") }} />
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(menuJsonLd).replace(/</g, "\\u003c") }} />
-    <section className="shell pt-8 pb-12 md:pt-14 md:pb-16 border-b hairline">
-      <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div>
-          <p className="eyebrow mb-4 text-[var(--ember)] font-medium tracking-wider">ГОТОВИМ НА ОТКРЫТОМ ОГНЕ · {catalog.store.leadTimeMinutes} МИН</p>
-          <h1 className="display text-5xl md:text-7xl leading-[1.05] mb-5 text-[var(--charcoal)]">МАНГАЛ</h1>
-          <p className="text-base md:text-lg leading-relaxed text-[var(--muted)] max-w-lg mb-7">
-            Шаурма, бургеры, донеры и мясо на углях. Закажите на сайте или позвоните нам.
-          </p>
-          
-          <div className="flex flex-wrap items-center gap-4 mb-8">
-            <a href="#menu" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--ember)] px-7 font-medium text-white transition-colors hover:bg-[#b03010] shadow-sm">
-              Смотреть меню
-            </a>
-            <a href={`tel:${catalog.store.phoneHref}`} className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[var(--line)] bg-white px-6 font-medium text-[var(--charcoal)] transition-colors hover:bg-[#f5efe6]">
-              Позвонить: {catalog.store.phoneDisplay}
-            </a>
+  const fulfillment = [
+    catalog.store.pickupEnabled ? (catalog.store.pickupLabel ?? "Самовывоз") : null,
+    catalog.store.deliveryEnabled && catalog.store.deliveryZones.length ? "Доставка" : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return (
+    <>
+      <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(restaurantJsonLd) }} />
+      <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(menuJsonLd) }} />
+      <section className="shell border-b hairline pb-14 pt-10 md:pb-20 md:pt-16">
+        <div className="grid gap-12 lg:grid-cols-[1.15fr_.85fr] lg:items-end">
+          <div>
+            <p className="eyebrow mb-5">Готовим после заказа · от {catalog.store.leadTimeMinutes} минут</p>
+            <h1 className="display max-w-5xl text-[clamp(76px,15vw,218px)] leading-[.68] uppercase">
+              {profile.name}
+            </h1>
+            {profile.description ? (
+              <p className="mt-10 max-w-2xl text-base leading-7 text-[var(--muted)] md:text-lg">
+                {profile.description}
+              </p>
+            ) : null}
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <a href="#menu" className="inline-flex min-h-12 items-center justify-center rounded-[4px] bg-[var(--ember)] px-7 font-semibold text-[var(--button-fg)] transition-[filter] hover:brightness-90">
+                Смотреть меню
+              </a>
+              {profile.phoneHref && profile.phoneDisplay ? (
+                <a href={`tel:${profile.phoneHref}`} className="inline-flex min-h-12 items-center justify-center rounded-[4px] border hairline px-6 font-medium transition-colors hover:border-[var(--ember)]">
+                  {profile.phoneDisplay}
+                </a>
+              ) : null}
+            </div>
           </div>
 
-          <div className="pt-6 border-t hairline grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[var(--muted)]">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ember)]"></span>
-              <span>Готовим после заказа</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ember)]"></span>
-              <span>Самовывоз и доставка</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ember)]"></span>
-              <span>Актуальное меню и цены</span>
-            </div>
+          <div className="relative min-h-80 overflow-hidden border hairline bg-[var(--surface)]">
+            {profile.heroImagePath ? (
+              <Image
+                src={profile.heroImagePath}
+                alt={`Обложка ${profile.name}`}
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 42vw"
+                className="object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col justify-between p-7">
+                <span className="mono text-xs uppercase tracking-[.22em] text-[var(--muted)]">Editorial placeholder</span>
+                <div>
+                  <div className="mb-6 h-px w-24 bg-[var(--ember)]" />
+                  <p className="display max-w-md text-5xl leading-[.9]">Фотография заведения появится после загрузки владельцем</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Hero Right Composition */}
-        <div className="relative group">
-          <div className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden rounded-[12px] border hairline bg-[#ebe6dd] shadow-md">
-            <img 
-              src="/images/demo/hero-grill.jpg" 
-              alt="Мясо на открытом огне" 
-              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" 
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
-              <span className="text-xs font-medium tracking-wide bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-[4px] border border-white/10">
-                Сочный шашлык на углях
-              </span>
-              <span className="text-[10px] text-white/70 uppercase tracking-wider">
-                Демо-иллюстрация
-              </span>
-            </div>
-          </div>
+        <div className="mt-14 grid gap-px border hairline bg-[var(--line)] md:grid-cols-3">
+          <EditorialStep number="01" title="Выберите блюда">Цена в корзине предварительная; сервер пересчитает актуальный каталог.</EditorialStep>
+          <EditorialStep number="02" title="Способ получения">{fulfillment.length ? fulfillment.join(" · ") : "Способы получения настраивает владелец."}</EditorialStep>
+          <EditorialStep number="03" title="Подтвердите заказ">Оплата подтверждается только проверенным состоянием эквайера.</EditorialStep>
         </div>
-      </div>
-
-      {/* How to Order Block */}
-      <div className="mt-14 pt-10 border-t hairline">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <h2 className="display text-2xl text-[var(--charcoal)]">Как сделать заказ</h2>
-          <p className="text-xs text-[var(--muted)]">
-            * Фотографии в демоверсии. Перед запуском заменим на фотографии заведения.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-5 rounded-[8px] bg-white border hairline shadow-xs">
-            <span className="mono text-xs text-[var(--ember)] font-semibold mb-2 block">01</span>
-            <h3 className="font-medium text-base mb-1 text-[var(--charcoal)]">Выберите блюда</h3>
-            <p className="text-xs leading-5 text-[var(--muted)]">Добавьте нужный шашлык, шаурму или напитки в корзину в пару кликов.</p>
-          </div>
-          <div className="p-5 rounded-[8px] bg-white border hairline shadow-xs">
-            <span className="mono text-xs text-[var(--ember)] font-semibold mb-2 block">02</span>
-            <h3 className="font-medium text-base mb-1 text-[var(--charcoal)]">Способ получения</h3>
-            <p className="text-xs leading-5 text-[var(--muted)]">Выберите самовывоз из заведения или доставку курьером до вашей двери.</p>
-          </div>
-          <div className="p-5 rounded-[8px] bg-white border hairline shadow-xs">
-            <span className="mono text-xs text-[var(--ember)] font-semibold mb-2 block">03</span>
-            <h3 className="font-medium text-base mb-1 text-[var(--charcoal)]">Подтвердите заказ</h3>
-            <p className="text-xs leading-5 text-[var(--muted)]">Заказ отправляется напрямую на кухню. Готовим быстро и к точному времени.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-    <MenuExplorer catalog={catalog} />
-  </>;
+      </section>
+      <MenuExplorer catalog={catalog} />
+    </>
+  );
 }
+
+function EditorialStep({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
+  return (
+    <article className="bg-[var(--page-bg)] p-6 md:p-8">
+      <span className="mono text-xs text-[var(--ember)]">{number}</span>
+      <h2 className="display mt-4 text-3xl">{title}</h2>
+      <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{children}</p>
+    </article>
+  );
+}
+
+function safeJsonLd(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+function productOffer(
+  product: PublicCatalogProduct,
+  currency: string,
+): Record<string, unknown> {
+  const priceKopecks = product.basePriceKopecks ?? product.unitPriceKopecks;
+  if (!product.isOrderable || product.requiresPriceConfirmation || priceKopecks === null) return {};
+  return {
+    offers: {
+      "@type": "Offer",
+      priceCurrency: currency,
+      price: priceKopecks / 100,
+      availability: product.isAvailable
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+    },
+  };
+}
+
+type PublicCatalogProduct = Awaited<ReturnType<typeof fetchCatalog>>["categories"][number]["products"][number];

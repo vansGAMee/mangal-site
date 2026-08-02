@@ -2,6 +2,7 @@ import type { OutboxEvent } from "../../../../../generated/prisma/client";
 import { db } from "../shared/db";
 import { initializePaymentAttempt } from "../payments/application/initialize-payment";
 import { processRefund } from "../payments/application/refund-payment";
+import { deleteMediaAsset } from "../storage/lifecycle";
 
 export async function processOutboxBatch(workerId: string, limit = 20): Promise<{ processed: number }> {
   const events = await claimEvents(workerId, limit);
@@ -10,6 +11,7 @@ export async function processOutboxBatch(workerId: string, limit = 20): Promise<
     try {
       if (event.type === "INITIATE_PAYMENT") await initializePaymentAttempt(event.aggregateId);
       else if (event.type === "REFUND_PAYMENT") await processRefund(event.aggregateId);
+      else if (event.type === "DELETE_MEDIA_ASSET") await deleteMediaAsset(event.aggregateId);
       else throw new Error("unsupported_event_type");
       await db.outboxEvent.update({ where: { id: event.id }, data: { status: "COMPLETED", completedAt: new Date(), leaseOwner: null, leaseExpiresAt: null } });
       processed++;

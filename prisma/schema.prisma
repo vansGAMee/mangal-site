@@ -133,6 +133,27 @@ enum AdminPermissionCode {
   REFUND_ORDER
 }
 
+enum RestaurantTheme {
+  MANGAL_DARK
+  CAFE_LIGHT
+  SUSHI_MINIMAL
+}
+
+enum StorageDriver {
+  LOCAL
+  VERCEL_BLOB
+}
+
+enum FulfillmentMethod {
+  DELIVERY
+  PICKUP
+}
+
+enum CatalogImportFormat {
+  CSV
+  JSON
+}
+
 model Category {
   id        String    @id @default(uuid()) @db.Uuid
   slug      String    @unique
@@ -157,6 +178,7 @@ model Product {
   pricingType               PricingType
   saleUnit                  SaleUnit
   basePriceKopecks          Int?
+  oldPriceKopecks           Int?
   unitPriceKopecks          Int?
   priceUnitGrams            Int?
   weightGrams               Int?
@@ -168,6 +190,8 @@ model Product {
   caloriesKcal              Int?
   allergens                 String?
   imagePath                 String                 @default("/images/product-placeholder.svg")
+  imageAssetId              String?                @db.Uuid
+  position                  Int                    @default(0)
   fiscalVatCode             String?
   fiscalPaymentSubject      String?
   fiscalPaymentMode         String?
@@ -176,10 +200,13 @@ model Product {
   createdAt                 DateTime               @default(now()) @db.Timestamptz(3)
   updatedAt                 DateTime               @updatedAt @db.Timestamptz(3)
   category                  Category               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  imageAsset                MediaAsset?            @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
   modifierGroups            ProductModifierGroup[]
   orderItems                OrderItem[]
 
   @@index([categoryId, isAvailable])
+  @@index([categoryId, position])
+  @@index([imageAssetId])
   @@index([isOrderable, isAvailable])
 }
 
@@ -240,6 +267,91 @@ model StoreSettings {
   updatedAt             DateTime   @updatedAt @db.Timestamptz(3)
 }
 
+model RestaurantProfile {
+  id                  String          @id @default("singleton")
+  slug                String          @unique
+  name                String
+  description         String?
+  logoPath            String?
+  logoAssetId         String?         @db.Uuid
+  faviconPath         String?
+  faviconAssetId      String?         @db.Uuid
+  heroImagePath       String?
+  heroImageAssetId    String?         @db.Uuid
+  theme               RestaurantTheme @default(MANGAL_DARK)
+  primaryColor        String          @default("#E04E1B")
+  secondaryColor      String          @default("#C89D5C")
+  backgroundColor     String          @default("#0D0D0E")
+  foregroundColor     String          @default("#F4F1EA")
+  phoneDisplay        String?
+  phoneHref           String?
+  email               String?
+  address             String?
+  latitude            Float?
+  longitude           Float?
+  vkUrl               String?
+  telegramUrl         String?
+  whatsappUrl         String?
+  currency            String          @default("RUB")
+  timezone            String          @default("Europe/Saratov")
+  seoTitle            String
+  seoDescription      String
+  legalName           String?
+  legalInn            String?
+  legalRegistrationNo String?
+  legalAddress        String?
+  privacyPolicyPath   String          @default("/legal/privacy")
+  deliveryEnabled     Boolean         @default(false)
+  pickupEnabled       Boolean         @default(false)
+  pickupLabel         String?
+  version             Int             @default(1)
+  createdAt           DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime        @updatedAt @db.Timestamptz(3)
+  logoAsset           MediaAsset?     @relation("RestaurantLogo", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  faviconAsset        MediaAsset?     @relation("RestaurantFavicon", fields: [faviconAssetId], references: [id], onDelete: SetNull)
+  heroImageAsset      MediaAsset?     @relation("RestaurantHero", fields: [heroImageAssetId], references: [id], onDelete: SetNull)
+
+  @@index([logoAssetId])
+  @@index([faviconAssetId])
+  @@index([heroImageAssetId])
+}
+
+model MediaAsset {
+  id                 String              @id @default(uuid()) @db.Uuid
+  publicId           String              @unique @default(cuid())
+  storageDriver      StorageDriver
+  objectKey          String              @unique
+  publicUrl          String
+  mimeType           String
+  byteSize           Int
+  width              Int?
+  height             Int?
+  sha256             String
+  altText            String?
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime?           @db.Timestamptz(3)
+  products           Product[]
+  restaurantLogos    RestaurantProfile[] @relation("RestaurantLogo")
+  restaurantFavicons RestaurantProfile[] @relation("RestaurantFavicon")
+  restaurantHeroes   RestaurantProfile[] @relation("RestaurantHero")
+
+  @@index([storageDriver, createdAt])
+  @@index([sha256])
+}
+
+model CatalogImport {
+  id           String              @id @default(uuid()) @db.Uuid
+  sourceSha256 String              @unique
+  sourceName   String
+  format       CatalogImportFormat
+  createdCount Int
+  skippedCount Int
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt])
+}
+
 model DeliveryZone {
   id                   String   @id @default(uuid()) @db.Uuid
   publicId             String   @unique @default(cuid())
@@ -278,42 +390,44 @@ model PaymentRouting {
 }
 
 model Order {
-  id                  String               @id @default(uuid()) @db.Uuid
-  publicId            String               @unique
-  checkoutId          String               @unique @db.Uuid
-  checkoutRequestHash String
-  paymentStatus       PaymentStatus        @default(UNPAID)
-  fulfillmentStatus   FulfillmentStatus    @default(NEW)
-  paymentMethod       PaymentMethod
-  currency            String               @default("RUB")
-  subtotalKopecks     Int
-  deliveryFeeKopecks  Int
-  totalKopecks        Int
-  deliveryZoneId      String               @db.Uuid
-  deliverySlotStart   DateTime             @db.Timestamptz(3)
-  phoneEncrypted      Json
-  phoneLookupHash     String
-  emailEncrypted      Json?
-  cityEncrypted       Json
-  streetEncrypted     Json
-  houseEncrypted      Json
-  apartmentEncrypted  Json?
-  entranceEncrypted   Json?
-  floorEncrypted      Json?
-  intercomEncrypted   Json?
-  commentEncrypted    Json?
-  taxSystemSnapshot   String
-  version             Int                  @default(1)
-  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
-  deliveryZone        DeliveryZone         @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
-  items               OrderItem[]
-  consents            LegalConsent[]
-  paymentAttempts     PaymentAttempt[]
-  refunds             Refund[]
-  statusHistory       OrderStatusHistory[]
-  auditLogs           AdminAuditLog[]
-  notifications       SystemNotification[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  publicId               String                  @unique
+  checkoutId             String                  @unique @db.Uuid
+  checkoutRequestHash    String
+  paymentStatus          PaymentStatus           @default(UNPAID)
+  fulfillmentStatus      FulfillmentStatus       @default(NEW)
+  fulfillmentMethod      FulfillmentMethod       @default(DELIVERY)
+  paymentMethod          PaymentMethod
+  currency               String                  @default("RUB")
+  subtotalKopecks        Int
+  deliveryFeeKopecks     Int
+  totalKopecks           Int
+  deliveryZoneId         String?                 @db.Uuid
+  deliverySlotStart      DateTime                @db.Timestamptz(3)
+  phoneEncrypted         Json
+  phoneLookupHash        String
+  emailEncrypted         Json?
+  cityEncrypted          Json?
+  streetEncrypted        Json?
+  houseEncrypted         Json?
+  apartmentEncrypted     Json?
+  entranceEncrypted      Json?
+  floorEncrypted         Json?
+  intercomEncrypted      Json?
+  commentEncrypted       Json?
+  taxSystemSnapshot      String
+  version                Int                     @default(1)
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
+  deliveryZone           DeliveryZone?           @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
+  items                  OrderItem[]
+  deliveryFiscalSnapshot DeliveryFiscalSnapshot?
+  consents               LegalConsent[]
+  paymentAttempts        PaymentAttempt[]
+  refunds                Refund[]
+  statusHistory          OrderStatusHistory[]
+  auditLogs              AdminAuditLog[]
+  notifications          SystemNotification[]
 
   @@index([paymentStatus, createdAt])
   @@index([fulfillmentStatus, createdAt])
@@ -371,6 +485,24 @@ model FiscalItemSnapshot {
   sourceReceiptPayloadHash String
   createdAt                DateTime  @default(now()) @db.Timestamptz(3)
   orderItem                OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+}
+
+model DeliveryFiscalSnapshot {
+  id                       String   @id @default(uuid()) @db.Uuid
+  orderId                  String   @unique @db.Uuid
+  fiscalName               String
+  unitPriceKopecks         Int
+  quantity                 Int
+  amountKopecks            Int
+  vatCode                  String
+  taxSystemCode            String
+  paymentSubject           String
+  paymentMode              String
+  measure                  String
+  providerReceiptId        String?
+  sourceReceiptPayloadHash String
+  createdAt                DateTime @default(now()) @db.Timestamptz(3)
+  order                    Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
 }
 
 model OrderStatusHistory {
@@ -449,8 +581,8 @@ model PaymentAttempt {
   reconciliationTasks PaymentReconciliationTask[]
   refunds             Refund[]
 
+  @@unique([provider, externalPaymentId])
   @@index([status, updatedAt])
-  @@index([externalPaymentId])
   @@index([orderId, createdAt])
 }
 
@@ -514,7 +646,7 @@ model Refund {
   currency          String         @default("RUB")
   reason            String
   idempotencyKey    String         @unique
-  externalRefundId  String?
+  externalRefundId  String?        @unique
   providerRequestId String?
   failureCode       String?
   createdByAdminId  String         @db.Uuid

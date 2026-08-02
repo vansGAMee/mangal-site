@@ -17,3 +17,7 @@ src/generated/prisma/
 apps/platform/src/generated/prisma/
 /generated/prisma/
 .pgdata/
+.data/
+backups/
+clients/*.client.json
+!clients/example.client.json

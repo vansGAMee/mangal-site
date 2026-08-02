@@ -2,16 +2,17 @@ import type { PublicCatalogResponse } from "@mangal/contracts";
 import { db } from "../shared/db";
 
 export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
-  const [categories, store, deliveryZones] = await Promise.all([
+  const [categories, store, profile, deliveryZones] = await Promise.all([
     db.category.findMany({
       where: { isActive: true },
       orderBy: { position: "asc" },
       include: {
         products: {
-          where: { isAvailable: true },
-          orderBy: [{ createdAt: "asc" }],
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
           include: {
+            imageAsset: true,
             modifierGroups: {
+              where: { modifierGroup: { isActive: true } },
               orderBy: { position: "asc" },
               include: {
                 modifierGroup: {
@@ -24,6 +25,10 @@ export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
       },
     }),
     db.storeSettings.findUniqueOrThrow({ where: { id: "singleton" } }),
+    db.restaurantProfile.findUniqueOrThrow({
+      where: { id: "singleton" },
+      include: { logoAsset: true, faviconAsset: true, heroImageAsset: true },
+    }),
     db.deliveryZone.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -52,6 +57,7 @@ export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
         pricingType: product.pricingType,
         saleUnit: product.saleUnit,
         basePriceKopecks: product.basePriceKopecks,
+        oldPriceKopecks: product.oldPriceKopecks,
         unitPriceKopecks: product.unitPriceKopecks,
         priceUnitGrams: product.priceUnitGrams,
         weightGrams: product.weightGrams,
@@ -59,7 +65,8 @@ export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
         requiresPriceConfirmation: product.requiresPriceConfirmation,
         isOrderable: product.isOrderable,
         isAvailable: product.isAvailable,
-        imagePath: product.imagePath,
+        imagePath: product.imageAsset?.publicUrl ?? product.imagePath,
+        position: product.position,
         modifiers: product.modifierGroups.map(({ modifierGroup }) => ({
           id: modifierGroup.id,
           name: modifierGroup.name,
@@ -78,11 +85,48 @@ export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
       })),
     })),
     store: {
-      phoneDisplay: "8 927 106 16 44",
-      phoneHref: "+79271061644",
+      profile: {
+        slug: profile.slug,
+        name: profile.name,
+        description: profile.description,
+        logoPath: profile.logoAsset?.publicUrl ?? profile.logoPath,
+        faviconPath: profile.faviconAsset?.publicUrl ?? profile.faviconPath,
+        heroImagePath: profile.heroImageAsset?.publicUrl ?? profile.heroImagePath,
+        theme: profile.theme,
+        primaryColor: profile.primaryColor,
+        secondaryColor: profile.secondaryColor,
+        backgroundColor: profile.backgroundColor,
+        foregroundColor: profile.foregroundColor,
+        phoneDisplay: profile.phoneDisplay,
+        phoneHref: profile.phoneHref,
+        email: profile.email,
+        address: profile.address,
+        latitude: profile.latitude,
+        longitude: profile.longitude,
+        vkUrl: profile.vkUrl,
+        telegramUrl: profile.telegramUrl,
+        whatsappUrl: profile.whatsappUrl,
+        currency: profile.currency,
+        timezone: profile.timezone,
+        seoTitle: profile.seoTitle,
+        seoDescription: profile.seoDescription,
+        legalName: profile.legalName,
+        legalInn: profile.legalInn,
+        legalRegistrationNo: profile.legalRegistrationNo,
+        legalAddress: profile.legalAddress,
+        privacyPolicyPath: profile.privacyPolicyPath,
+        deliveryEnabled: profile.deliveryEnabled,
+        pickupEnabled: profile.pickupEnabled,
+        pickupLabel: profile.pickupLabel,
+      },
+      phoneDisplay: profile.phoneDisplay,
+      phoneHref: profile.phoneHref,
       leadTimeMinutes: store.leadTimeMinutes,
       personalDataLegalBasis: store.legalBasis,
-      deliveryZones,
+      deliveryEnabled: profile.deliveryEnabled,
+      pickupEnabled: profile.pickupEnabled,
+      pickupLabel: profile.pickupLabel,
+      deliveryZones: profile.deliveryEnabled ? deliveryZones : [],
     },
   };
 }

@@ -8,12 +8,14 @@ import {
   clientIp,
   corsHeaders,
   MAX_CHECKOUT_BODY_BYTES,
+  MalformedBodyError,
   normalizeUserAgent,
   readLimitedBody,
   requestId,
   validateStorefrontOrigin,
 } from "@/server/security/http";
 import { catalogChanged, checkoutResults } from "@/server/observability/metrics";
+import { logger } from "@/server/observability/logger";
 
 export async function OPTIONS(request: Request): Promise<Response> {
   const origin = validateStorefrontOrigin(request);
@@ -45,11 +47,11 @@ export async function POST(request: Request): Promise<Response> {
       headers: { ...corsHeaders(origin), "Cache-Control": "no-store", "X-Request-Id": id },
     });
   } catch (error) {
-    console.error("Checkout Catch Error:", error);
     if (error instanceof CheckoutError) { checkoutResults.inc({ result: error.code }); if (error.code === "catalog_changed") catalogChanged.inc(); return withCors(apiError(error.code, error.status, id, error.message), origin); }
-    if (error instanceof BodyTooLargeError || error instanceof SyntaxError) {
+    if (error instanceof BodyTooLargeError || error instanceof MalformedBodyError || error instanceof SyntaxError) {
       return withCors(apiError("validation", 400, id, "Некорректное тело запроса"), origin);
     }
+    logger.error({ requestId: id }, "Checkout failed with an unexpected error");
     return withCors(apiError("store_not_configured", 500, id, "Оформление временно недоступно"), origin);
   }
 }

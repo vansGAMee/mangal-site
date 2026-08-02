@@ -13,6 +13,7 @@ function createClient(): PrismaClient {
     max: env.DATABASE_POOL_MAX,
     connectionTimeoutMillis: env.DATABASE_CONNECT_TIMEOUT_MS,
     idleTimeoutMillis: 30_000,
+    options: `-c statement_timeout=${env.DATABASE_STATEMENT_TIMEOUT_MS}`,
   });
   return new PrismaClient({ adapter });
 }

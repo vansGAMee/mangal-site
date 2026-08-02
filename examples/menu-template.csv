@@ -1,0 +1,4 @@
+category,name,description,price,oldPrice,weight,image,available,sortOrder
+Основное,Название блюда,Подтверждённое описание блюда,350,,,/images/product-placeholder.svg,true,10
+Напитки,Название напитка,,120,,500,/images/product-placeholder.svg,true,20
+Сезонное,Позиция без цены,,,,,/images/product-placeholder.svg,false,30

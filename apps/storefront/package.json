@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "cd ../.. && npm run prisma:generate && cd apps/storefront && next build",
+    "build": "next build",
     "start": "next start --port 3000"
   },
   "dependencies": {

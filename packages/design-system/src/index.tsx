@@ -47,7 +47,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-[4px] bg-[var(--ember)] px-5 py-3 font-semibold text-white transition-colors duration-200 hover:bg-[#b03010] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--charcoal)]",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-[4px] bg-[var(--ember)] px-5 py-3 font-semibold text-[var(--button-fg)] transition-[filter,transform] duration-200 hover:brightness-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--charcoal)]",
         className,
       )}
       {...props}
