@@ -2,14 +2,26 @@
   email {$ADMIN_BOOTSTRAP_EMAIL:admin@example.com}
 }
 
-{$DOMAIN:localhost} {
+{$SITE_DOMAIN:localhost} {
+  # Максимальный размер тела запроса (10 МБ)
+  request_body {
+    max_size 10MB
+  }
+
   # Статический файловый сервер для загруженных медиа-файлов и логотипов
   handle_path /uploads/* {
     root * /app/uploads
-    file_server
+    file_server {
+      hide .*
+    }
   }
 
   # Маршрутизация запросов платформы / API / админки
+  handle /_platform/* {
+    uri strip_prefix /_platform
+    reverse_proxy platform:8080
+  }
+
   handle /api/* {
     reverse_proxy platform:8080
   }

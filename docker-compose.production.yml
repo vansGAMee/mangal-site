@@ -3,14 +3,13 @@ services:
     image: postgres:17-alpine
     restart: always
     environment:
-      POSTGRES_DB: mangal
-      POSTGRES_USER: mangal
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}
-    # Порт 5432 НЕ публикуется наружу ради безопасности. Доступ только внутри сети Docker.
+      POSTGRES_DB: ${POSTGRES_DB:-mangal}
+      POSTGRES_USER: ${POSTGRES_USER:-mangal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env.production}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mangal -d mangal"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mangal} -d ${POSTGRES_DB:-mangal}"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -21,13 +20,14 @@ services:
       dockerfile: Dockerfile
     restart: always
     env_file:
-      - .env
+      - ${ENV_FILE:-.env.production}
     environment:
       APP_ROLE: web
       PORT: 8080
-      DATABASE_URL: postgresql://mangal:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}@postgres:5432/mangal?schema=public
-      DIRECT_URL: postgresql://mangal:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}@postgres:5432/mangal?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mangal}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mangal}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-mangal}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mangal}?schema=public
       LOCAL_MEDIA_ROOT: /app/uploads
+      MEDIA_PUBLIC_BASE_URL: /uploads
     volumes:
       - uploadsdata:/app/uploads
     healthcheck:
@@ -46,7 +46,7 @@ services:
       dockerfile: Dockerfile.storefront
     restart: always
     env_file:
-      - .env
+      - ${ENV_FILE:-.env.production}
     environment:
       PLATFORM_API_URL: http://platform:8080
     healthcheck:
@@ -66,7 +66,7 @@ services:
       - "80:80"
       - "443:443"
     env_file:
-      - .env
+      - ${ENV_FILE:-.env.production}
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:-${DOMAIN:-localhost}}
       DOMAIN: ${SITE_DOMAIN:-${DOMAIN:-localhost}}

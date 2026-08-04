@@ -47,6 +47,8 @@ async function main(): Promise<void> {
     logoPath: null,
     faviconPath: null,
     heroImagePath: null,
+    heroTitle: null,
+    buttonColor: null,
     theme: themeEnum(config.theme),
     primaryColor: config.primaryColor,
     secondaryColor: config.secondaryColor,

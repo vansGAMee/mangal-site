@@ -88,6 +88,7 @@ export function MenuExplorer({ catalog }: { catalog: PublicCatalogResponse }) {
                         src={product.imagePath} 
                         alt={product.name}
                         fill 
+                        unoptimized
                         sizes="(max-width:768px) 100vw, 33vw" 
                         className="object-cover transition-transform duration-300 group-hover:scale-105" 
                       />

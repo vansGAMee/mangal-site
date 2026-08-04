@@ -18,7 +18,7 @@ const RuntimeEnvSchema = z.object({
   INTERNAL_JOBS_TOKEN: optionalTrimmed,
   STORAGE_DRIVER: z.enum(["local", "vercel-blob"]).default("local"),
   LOCAL_MEDIA_ROOT: optionalTrimmed,
-  MEDIA_PUBLIC_BASE_URL: z.string().url().optional(),
+  MEDIA_PUBLIC_BASE_URL: optionalTrimmed,
   BLOB_READ_WRITE_TOKEN: optionalTrimmed,
   IMAGE_MAX_BYTES: positiveInt.default(5 * 1024 * 1024),
   DEMO_MODE: z.stringbool().default(false),

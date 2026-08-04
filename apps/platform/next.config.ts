@@ -21,6 +21,7 @@ for (const value of [process.env.MEDIA_PUBLIC_BASE_URL, process.env.ADMIN_BASE_U
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  assetPrefix: process.env.ASSET_PREFIX || "/_platform",
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: [

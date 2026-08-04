@@ -65,7 +65,7 @@ export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
         requiresPriceConfirmation: product.requiresPriceConfirmation,
         isOrderable: product.isOrderable,
         isAvailable: product.isAvailable,
-        imagePath: product.imageAsset?.publicUrl ?? product.imagePath,
+        imagePath: normalizeMediaUrl(product.imageAsset?.publicUrl ?? product.imagePath) ?? "/images/product-placeholder.svg",
         position: product.position,
         modifiers: product.modifierGroups.map(({ modifierGroup }) => ({
           id: modifierGroup.id,
@@ -89,14 +89,16 @@ export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
         slug: profile.slug,
         name: profile.name,
         description: profile.description,
-        logoPath: profile.logoAsset?.publicUrl ?? profile.logoPath,
-        faviconPath: profile.faviconAsset?.publicUrl ?? profile.faviconPath,
-        heroImagePath: profile.heroImageAsset?.publicUrl ?? profile.heroImagePath,
+        logoPath: normalizeMediaUrl(profile.logoAsset?.publicUrl ?? profile.logoPath),
+        faviconPath: normalizeMediaUrl(profile.faviconAsset?.publicUrl ?? profile.faviconPath),
+        heroImagePath: normalizeMediaUrl(profile.heroImageAsset?.publicUrl ?? profile.heroImagePath),
+        heroTitle: profile.heroTitle,
         theme: profile.theme,
         primaryColor: profile.primaryColor,
         secondaryColor: profile.secondaryColor,
         backgroundColor: profile.backgroundColor,
         foregroundColor: profile.foregroundColor,
+        buttonColor: profile.buttonColor,
         phoneDisplay: profile.phoneDisplay,
         phoneHref: profile.phoneHref,
         email: profile.email,
@@ -129,4 +131,19 @@ export async function getPublicCatalog(): Promise<PublicCatalogResponse> {
       deliveryZones: profile.deliveryEnabled ? deliveryZones : [],
     },
   };
+}
+
+function normalizeMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.pathname.startsWith("/uploads/")) return parsed.pathname;
+      if (parsed.pathname.startsWith("/media/")) return `/uploads${parsed.pathname.slice(6)}`;
+    } catch {
+      // fallback
+    }
+  }
+  if (url.startsWith("/media/")) return `/uploads${url.slice(6)}`;
+  return url;
 }

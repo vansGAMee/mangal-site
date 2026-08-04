@@ -161,6 +161,7 @@ export function AdminSettings() {
         <div className="settings-grid">
           <TextField name="slug" label="Slug" defaultValue={profile.slug} required />
           <TextField name="name" label="Название" defaultValue={profile.name} required />
+          <TextField name="heroTitle" label="Заголовок первого экрана" defaultValue={profile.heroTitle ?? ""} />
           <label className="settings-wide">Описание<textarea className="admin-field" name="description" defaultValue={profile.description ?? ""} maxLength={1000} /></label>
           <TextField name="phoneDisplay" label="Телефон, как показывать" defaultValue={profile.phoneDisplay ?? ""} />
           <TextField name="phoneHref" label="Телефон для tel:, +7…" defaultValue={profile.phoneHref ?? ""} />
@@ -175,16 +176,21 @@ export function AdminSettings() {
           <TextField name="timezone" label="Часовой пояс" defaultValue={profile.timezone} required />
         </div>
 
-        <h2>Тема и медиа</h2>
+        <h2>Тема и цвета</h2>
         <div className="settings-grid">
           <label>Тема<select className="admin-field" name="theme" defaultValue={profile.theme}><option value="MANGAL_DARK">mangal-dark</option><option value="CAFE_LIGHT">cafe-light</option><option value="SUSHI_MINIMAL">sushi-minimal</option></select></label>
-          <TextField name="primaryColor" label="Основной цвет" type="color" defaultValue={profile.primaryColor} required />
-          <TextField name="secondaryColor" label="Дополнительный цвет" type="color" defaultValue={profile.secondaryColor} required />
-          <TextField name="backgroundColor" label="Фон" type="color" defaultValue={profile.backgroundColor} required />
-          <TextField name="foregroundColor" label="Текст" type="color" defaultValue={profile.foregroundColor} required />
-          <FileField name="logoFile" label="Логотип" />
-          <FileField name="faviconFile" label="Favicon" />
-          <FileField name="heroFile" label="Обложка" />
+          <ColorPickerField name="primaryColor" label="Основной цвет" defaultValue={profile.primaryColor} />
+          <ColorPickerField name="secondaryColor" label="Дополнительный цвет" defaultValue={profile.secondaryColor} />
+          <ColorPickerField name="backgroundColor" label="Фон" defaultValue={profile.backgroundColor} />
+          <ColorPickerField name="foregroundColor" label="Текст" defaultValue={profile.foregroundColor} />
+          <ColorPickerField name="buttonColor" label="Цвет кнопок" defaultValue={profile.buttonColor || profile.primaryColor} />
+        </div>
+
+        <h2>Изображения и логотипы</h2>
+        <div className="settings-grid">
+          <ImagePreviewField name="logoFile" label="Логотип" currentPath={profile.logoPath} />
+          <ImagePreviewField name="heroFile" label="Обложка первого экрана" currentPath={profile.heroImagePath} />
+          <ImagePreviewField name="faviconFile" label="Favicon" currentPath={profile.faviconPath} />
         </div>
 
         <h2>Получение и SEO</h2>
@@ -265,11 +271,13 @@ function profileFromForm(fields: FormData, current: Profile): RestaurantProfileI
     logoPath: current.logoPath,
     faviconPath: current.faviconPath,
     heroImagePath: current.heroImagePath,
+    heroTitle: nullableString(fields.get("heroTitle")),
     theme: String(fields.get("theme")) as RestaurantProfileInput["theme"],
     primaryColor: String(fields.get("primaryColor") ?? ""),
     secondaryColor: String(fields.get("secondaryColor") ?? ""),
     backgroundColor: String(fields.get("backgroundColor") ?? ""),
     foregroundColor: String(fields.get("foregroundColor") ?? ""),
+    buttonColor: nullableString(fields.get("buttonColor")),
     phoneDisplay: nullableString(fields.get("phoneDisplay")),
     phoneHref: nullableString(fields.get("phoneHref")),
     email: nullableString(fields.get("email")),
@@ -329,8 +337,56 @@ function TextField({ label, ...props }: React.InputHTMLAttributes<HTMLInputEleme
   return <label>{label}<input className="admin-field" {...props} /></label>;
 }
 
-function FileField({ name, label }: { name: string; label: string }) {
-  return <label>{label}<input className="admin-field" name={name} type="file" accept="image/jpeg,image/png,image/webp,image/avif" /></label>;
+function ColorPickerField({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string | null }) {
+  const [color, setColor] = useState(defaultValue || "#e04e1b");
+  return (
+    <label style={{ display: "block" }}>
+      <span>{label}</span>
+      <div style={{ display: "flex", gap: "8px", marginTop: "6px", alignItems: "center" }}>
+        <input
+          type="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          style={{ width: "42px", height: "42px", padding: 0, border: "1px solid #3a3937", borderRadius: "4px", background: "none", cursor: "pointer" }}
+        />
+        <input
+          className="admin-field"
+          name={name}
+          type="text"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          style={{ marginTop: 0, flex: 1 }}
+        />
+      </div>
+    </label>
+  );
+}
+
+function ImagePreviewField({ name, label, currentPath }: { name: string; label: string; currentPath?: string | null }) {
+  const [preview, setPreview] = useState<string | null>(currentPath || null);
+  return (
+    <label style={{ display: "block" }}>
+      <span>{label}</span>
+      {preview ? (
+        <div style={{ margin: "8px 0", padding: "6px", borderRadius: "4px", background: "#151516", border: "1px solid #3a3937", width: "fit-content" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt={label} style={{ maxHeight: "70px", maxWidth: "180px", objectFit: "contain", display: "block" }} />
+        </div>
+      ) : null}
+      <input
+        className="admin-field"
+        name={name}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            setPreview(URL.createObjectURL(file));
+          }
+        }}
+      />
+    </label>
+  );
 }
 
 function nullableString(value: FormDataEntryValue | null): string | null {

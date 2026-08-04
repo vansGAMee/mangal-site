@@ -24,10 +24,13 @@ export class LocalVolumeStorage implements ImageStorage {
       await rm(temporary, { force: true }).catch(() => undefined);
       throw error;
     }
+    const publicUrl = this.publicBaseUrl.startsWith("http://") || this.publicBaseUrl.startsWith("https://")
+      ? `${new URL(this.publicBaseUrl).origin}/uploads/${objectKey}`
+      : `/uploads/${objectKey}`;
     return {
       driver: this.driver,
       objectKey,
-      publicUrl: new URL(`/media/${objectKey}`, ensureTrailingSlash(this.publicBaseUrl)).toString(),
+      publicUrl,
     };
   }
 
@@ -53,8 +56,4 @@ function safePathSegment(value: string): string {
   const normalized = value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
   if (!normalized) throw new Error("invalid_media_namespace");
   return normalized.slice(0, 80);
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
 }

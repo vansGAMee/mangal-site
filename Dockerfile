@@ -20,6 +20,7 @@ ENV NODE_ENV=production PORT=8080 APP_ROLE=web
 WORKDIR /app
 RUN groupadd --system --gid 1001 mangal && useradd --system --uid 1001 --gid mangal mangal
 COPY --from=build --chown=mangal:mangal /app /app
+RUN mkdir -p /app/uploads && chown -R mangal:mangal /app/uploads
 USER mangal
 EXPOSE 8080
 ENTRYPOINT ["node", "docker/entrypoint.mjs"]

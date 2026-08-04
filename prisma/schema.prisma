@@ -278,11 +278,13 @@ model RestaurantProfile {
   faviconAssetId      String?         @db.Uuid
   heroImagePath       String?
   heroImageAssetId    String?         @db.Uuid
+  heroTitle           String?
   theme               RestaurantTheme @default(MANGAL_DARK)
   primaryColor        String          @default("#E04E1B")
   secondaryColor      String          @default("#C89D5C")
   backgroundColor     String          @default("#0D0D0E")
   foregroundColor     String          @default("#F4F1EA")
+  buttonColor         String?
   phoneDisplay        String?
   phoneHref           String?
   email               String?

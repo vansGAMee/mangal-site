@@ -21,10 +21,12 @@ export async function POST(request: Request, context: { params: Promise<{ produc
     const { productId } = await context.params;
     const form = await limitedFormData(request, env.IMAGE_MAX_BYTES + 256 * 1024);
     const file = form.get("image");
-    const version = VersionSchema.safeParse(form.get("version"));
-    if (!(file instanceof File) || !version.success) {
+    const rawVersion = form.get("version");
+    const versionParsed = rawVersion !== null ? VersionSchema.safeParse(rawVersion) : null;
+    if (!(file instanceof File) || (versionParsed !== null && !versionParsed.success)) {
       return Response.json({ error: "validation", requestId: id }, { status: 400 });
     }
+    const versionVal = versionParsed?.data ?? null;
     const image = await validateImageFile(file, env.IMAGE_MAX_BYTES);
     storage = imageStorage();
     uploaded = await storage.put(image, `products-${productId}`);
@@ -41,7 +43,8 @@ export async function POST(request: Request, context: { params: Promise<{ produc
         },
       });
       if (!current) return { status: "not_found" as const, oldAssetId: null };
-      if (current.version !== version.data) return { status: "version_conflict" as const, oldAssetId: null };
+      if (versionVal !== null && current.version !== versionVal) return { status: "version_conflict" as const, oldAssetId: null };
+      const versionToUse = versionVal ?? current.version;
 
       const media = await tx.mediaAsset.create({
         data: {
@@ -57,7 +60,7 @@ export async function POST(request: Request, context: { params: Promise<{ produc
         },
       });
       const changed = await tx.product.updateMany({
-        where: { id: productId, version: version.data },
+        where: { id: productId, version: versionToUse },
         data: { imageAssetId: media.id, imagePath: media.publicUrl, version: { increment: 1 } },
       });
       if (!changed.count) throw new Error("version_conflict");

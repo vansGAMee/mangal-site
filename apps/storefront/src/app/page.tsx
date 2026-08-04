@@ -51,8 +51,8 @@ export default async function HomePage() {
         <div className="grid gap-12 lg:grid-cols-[1.15fr_.85fr] lg:items-end">
           <div>
             <p className="eyebrow mb-5">Готовим после заказа · от {catalog.store.leadTimeMinutes} минут</p>
-            <h1 className="display max-w-5xl text-[clamp(76px,15vw,218px)] leading-[.68] uppercase">
-              {profile.name}
+            <h1 className="display max-w-5xl text-[clamp(60px,12vw,180px)] leading-[.75] uppercase">
+              {profile.heroTitle || profile.name}
             </h1>
             {profile.description ? (
               <p className="mt-10 max-w-2xl text-base leading-7 text-[var(--muted)] md:text-lg">
@@ -78,6 +78,7 @@ export default async function HomePage() {
                 alt={`Обложка ${profile.name}`}
                 fill
                 priority
+                unoptimized
                 sizes="(max-width: 1024px) 100vw, 42vw"
                 className="object-cover"
               />

@@ -53,6 +53,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     "--brand-secondary": profile.secondaryColor,
     "--page-bg": profile.backgroundColor,
     "--page-fg": profile.foregroundColor,
+    ...(profile.buttonColor ? { "--ember": profile.buttonColor } : {}),
   } as CSSProperties;
 
   return (

@@ -15,9 +15,9 @@ export function imageStorageForDriver(driver: "LOCAL" | "VERCEL_BLOB"): ImageSto
     return new VercelBlobStorage(env.BLOB_READ_WRITE_TOKEN);
   }
   const root = env.LOCAL_MEDIA_ROOT ?? (env.NODE_ENV === "production" ? undefined : ".data/media");
-  const publicBaseUrl = env.MEDIA_PUBLIC_BASE_URL ?? (env.NODE_ENV === "production" ? undefined : "http://localhost:3001");
-  if (!root || !publicBaseUrl) {
-    throw new Error("LOCAL_MEDIA_ROOT and MEDIA_PUBLIC_BASE_URL are required for local storage");
+  const publicBaseUrl = env.MEDIA_PUBLIC_BASE_URL || "/uploads";
+  if (!root) {
+    throw new Error("LOCAL_MEDIA_ROOT is required for local storage");
   }
   return new LocalVolumeStorage(root, publicBaseUrl);
 }

@@ -215,7 +215,7 @@ export function AdminCatalog() {
               >
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                    {product.imagePath && product.imagePath !== "/images/product-placeholder.svg" && (
-                     <Image src={product.imagePath} alt="" width={40} height={40} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />
+                     <Image src={product.imagePath} alt="" width={40} height={40} unoptimized style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />
                    )}
                    <b>{product.name}</b>
                 </div>

@@ -28,10 +28,11 @@ describe("image storage", () => {
   it("writes and deletes an immutable local-volume object", async () => {
     const root = await mkdtemp(join(tmpdir(), "mangal-media-"));
     temporaryDirectories.push(root);
-    const storage = new LocalVolumeStorage(root, "https://api.example.test");
+    const storage = new LocalVolumeStorage(root, "/uploads");
     const upload = await validateImageFile(fileLike("image/png", png), 1024);
     const stored = await storage.put(upload, "products/demo");
     expect(stored.objectKey).toMatch(/^products-demo\/[0-9a-f-]+\.png$/);
+    expect(stored.publicUrl).toMatch(/^\/uploads\/products-demo\/[0-9a-f-]+\.png$/);
     expect(await readFile(resolveLocalMediaPath(root, stored.objectKey))).toEqual(png);
     await storage.delete(stored);
     await expect(readFile(resolveLocalMediaPath(root, stored.objectKey))).rejects.toThrow();

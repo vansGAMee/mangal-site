@@ -8,6 +8,8 @@ const base = {
   logoPath: null,
   faviconPath: null,
   heroImagePath: null,
+  heroTitle: null,
+  buttonColor: null,
   primaryColor: "#E04E1B",
   secondaryColor: "#C89D5C",
   phoneDisplay: null,
