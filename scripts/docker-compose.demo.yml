@@ -1,0 +1,19 @@
+﻿services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: mangal
+      POSTGRES_USER: mangal
+      POSTGRES_PASSWORD: mangal_local_only
+    ports:
+      - "55432:5432"
+    volumes:
+      - mangal-demo-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mangal -d mangal"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  mangal-demo-postgres:

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir, unlink } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -18,6 +18,20 @@ await run("pg_dump", [
   "--no-privileges",
   `--file=${outputFile}`,
 ], postgresEnvironment(database));
+
+const maxBackups = Number(argument("--max-backups") ?? process.env.MAX_BACKUPS ?? 10);
+if (Number.isFinite(maxBackups) && maxBackups > 0) {
+  const files = (await readdir(outputDirectory))
+    .filter(f => f.startsWith("mangal-") && f.endsWith(".dump"))
+    .sort();
+  if (files.length > maxBackups) {
+    const toDelete = files.slice(0, files.length - maxBackups);
+    for (const f of toDelete) {
+      await unlink(resolve(outputDirectory, f)).catch(() => {});
+    }
+  }
+}
+
 process.stdout.write(`${outputFile}\n`);
 
 function argument(name) {
