@@ -1,0 +1,25 @@
+{
+  email {$ADMIN_BOOTSTRAP_EMAIL:admin@example.com}
+}
+
+{$DOMAIN:localhost} {
+  # Статический файловый сервер для загруженных медиа-файлов и логотипов
+  handle_path /uploads/* {
+    root * /app/uploads
+    file_server
+  }
+
+  # Маршрутизация запросов платформы / API / админки
+  handle /api/* {
+    reverse_proxy platform:8080
+  }
+
+  handle /admin* {
+    reverse_proxy platform:8080
+  }
+
+  # Все остальное передается в витрину (storefront)
+  handle {
+    reverse_proxy storefront:3000
+  }
+}

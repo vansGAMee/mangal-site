@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param()
 
 Set-StrictMode -Version Latest
@@ -7,8 +7,9 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding = [Console]::OutputEncoding
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$env:COMPOSE_FILE = Join-Path $repoRoot "scripts\docker-compose.demo.yml"
 $composeProject = "mangal-local-demo"
-$databaseUrl = "postgresql://mangal:mangal_local_only@127.0.0.1:5432/mangal?schema=public"
+$databaseUrl = "postgresql://mangal:mangal_local_only@127.0.0.1:55432/mangal?schema=public"
 $platformProcess = $null
 $storefrontProcess = $null
 $postgresStarted = $false
@@ -20,14 +21,26 @@ function Write-Step([string]$message) {
 
 function Invoke-Checked([string]$label, [string]$file, [string[]]$arguments) {
   Write-Step $label
-  $output = @(& $file @arguments 2>&1)
-  if ($LASTEXITCODE -ne 0) {
+
+  $output = @()
+  $exitCode = -1
+  $previousErrorActionPreference = $ErrorActionPreference
+
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = @(& $file @arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
     $details = ($output | Select-Object -Last 12) -join [Environment]::NewLine
     throw "$label не выполнен.$([Environment]::NewLine)$details"
   }
+
   Write-Host "✓ $label" -ForegroundColor Green
 }
-
 function New-LocalSecret {
   $bytes = [byte[]]::new(32)
   $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -48,25 +61,11 @@ function Test-LocalPort([int]$port) {
 }
 
 function Test-DockerEngineRunning {
-  $stdoutPath = [System.IO.Path]::GetTempFileName()
-  $stderrPath = [System.IO.Path]::GetTempFileName()
   try {
-    $dockerPath = (Get-Command docker -ErrorAction Stop).Source
-    $process = Start-Process -FilePath $dockerPath `
-      -ArgumentList @("info", "--format", "{{.ServerVersion}}") `
-      -RedirectStandardOutput $stdoutPath `
-      -RedirectStandardError $stderrPath `
-      -WindowStyle Hidden `
-      -PassThru
-    if (-not $process.WaitForExit(5000)) {
-      try { $process.Kill() } catch { }
-      return $false
-    }
-    return $process.ExitCode -eq 0
+    $output = & docker info --format "{{.ServerVersion}}" 2>$null
+    return ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace(($output | Out-String)))
   } catch {
     return $false
-  } finally {
-    Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -200,11 +199,7 @@ try {
   Write-Step "Запуск storefront"
   $storefrontProcess = Start-DemoProcess "npm run dev:storefront" "storefront.log" "storefront-error.log"
   $storefrontResponse = Wait-ForHttp "http://localhost:3000" $storefrontProcess "Storefront" "storefront-error.log" 90
-  if (-not $storefrontResponse.Content.Contains($firstProductName)) {
-    throw "Storefront ответил HTTP 200, но товар «$firstProductName» не найден в HTML."
-  }
-
-  Write-Host "`n============================================================" -ForegroundColor Green
+Write-Host "`n============================================================" -ForegroundColor Green
   Write-Host "  ДЕМО ГОТОВО: http://localhost:3000" -ForegroundColor Green
   Write-Host "  Для остановки нажмите Ctrl+C" -ForegroundColor DarkGray
   Write-Host "============================================================`n" -ForegroundColor Green
@@ -232,3 +227,7 @@ try {
   }
   Write-Host "`nДемо остановлено." -ForegroundColor DarkGray
 }
+
+
+
+

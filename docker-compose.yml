@@ -1,57 +1,69 @@
 services:
   postgres:
     image: postgres:17-alpine
+    restart: always
     environment:
       POSTGRES_DB: mangal
       POSTGRES_USER: mangal
-      POSTGRES_PASSWORD: mangal_local_only
-    ports: ["5432:5432"]
-    volumes: ["mangal-postgres:/var/lib/postgresql/data"]
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mangal_vps_db_password}
+    # Порт 5432 закрыт снаружи для безопасности
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mangal -d mangal"]
       interval: 5s
       timeout: 3s
       retries: 20
+
   platform:
-    build: { context: ., dockerfile: Dockerfile }
-    env_file: .env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env
     environment:
       APP_ROLE: web
       PORT: 8080
-      DATABASE_URL: postgresql://mangal:mangal_local_only@postgres:5432/mangal?schema=public
-    ports: ["3001:8080"]
-    depends_on: { postgres: { condition: service_healthy } }
-  worker:
-    build: { context: ., dockerfile: Dockerfile }
-    env_file: .env
-    environment:
-      APP_ROLE: worker
-      JOB_EXECUTION_MODE: loop
-      DATABASE_URL: postgresql://mangal:mangal_local_only@postgres:5432/mangal?schema=public
-    depends_on: { postgres: { condition: service_healthy } }
-  reconciliation:
-    build: { context: ., dockerfile: Dockerfile }
-    env_file: .env
-    environment:
-      APP_ROLE: reconciliation
-      JOB_EXECUTION_MODE: loop
-      DATABASE_URL: postgresql://mangal:mangal_local_only@postgres:5432/mangal?schema=public
-    depends_on: { postgres: { condition: service_healthy } }
-  retention:
-    build: { context: ., dockerfile: Dockerfile }
-    env_file: .env
-    environment:
-      APP_ROLE: retention
-      JOB_EXECUTION_MODE: loop
-      DATABASE_URL: postgresql://mangal:mangal_local_only@postgres:5432/mangal?schema=public
-    depends_on: { postgres: { condition: service_healthy } }
+      DATABASE_URL: ${DATABASE_URL:-postgresql://mangal:mangal_vps_db_password@postgres:5432/mangal?schema=public}
+      LOCAL_MEDIA_ROOT: /app/uploads
+    volumes:
+      - uploadsdata:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   storefront:
-    build: { context: ., dockerfile: Dockerfile.storefront }
-    env_file: .env
+    build:
+      context: .
+      dockerfile: Dockerfile.storefront
+    restart: always
+    env_file:
+      - .env
     environment:
       PLATFORM_API_URL: http://platform:8080
-      NEXT_PUBLIC_PLATFORM_API_URL: http://localhost:3001
-    ports: ["3000:3000"]
-    depends_on: [platform]
+    depends_on:
+      - platform
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile
+      - uploadsdata:/app/uploads:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - platform
+      - storefront
+
 volumes:
-  mangal-postgres:
+  pgdata:
+  uploadsdata:
+  caddy_data:
+  caddy_config:
