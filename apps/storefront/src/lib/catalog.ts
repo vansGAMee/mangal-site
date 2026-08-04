@@ -6,13 +6,57 @@ function platformApiUrl(): string {
 }
 
 export async function fetchCatalog(): Promise<PublicCatalogResponse> {
-  const response = await fetch(`${platformApiUrl()}/api/public/catalog`, {
-    next: { revalidate: 60, tags: ["catalog", "restaurant-profile"] },
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    throw new Error(`Catalog API returned ${response.status}`);
-  }
+  try {
+    const response = await fetch(`${platformApiUrl()}/api/public/catalog`, {
+      next: { revalidate: 60, tags: ["catalog", "restaurant-profile"] },
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`Catalog API returned ${response.status}`);
+    }
 
-  return PublicCatalogResponseSchema.parse(await response.json());
+    return PublicCatalogResponseSchema.parse(await response.json());
+  } catch (error) {
+    if (typeof window === "undefined" && !process.env.PLATFORM_API_URL) {
+      return {
+        profile: {
+          slug: "mangal",
+          name: "Заведение",
+          description: "Онлайн-меню",
+          logoPath: null,
+          faviconPath: null,
+          heroImagePath: null,
+          theme: "MANGAL_DARK",
+          primaryColor: "#E05638",
+          secondaryColor: "#1B1A18",
+          surfaceBackgroundColor: "#0D0D0E",
+          surfaceForegroundColor: "#F4F1EA",
+          phoneDisplay: null,
+          phoneHref: null,
+          email: null,
+          address: null,
+          latitude: null,
+          longitude: null,
+          vkUrl: null,
+          telegramUrl: null,
+          whatsappUrl: null,
+          currency: "RUB",
+          timezone: "Europe/Moscow",
+          seoTitle: "Онлайн-меню",
+          seoDescription: "Заказ еды",
+          legalName: null,
+          legalInn: null,
+          legalRegistrationNo: null,
+          legalAddress: null,
+          privacyPolicyPath: "/legal/privacy",
+          deliveryEnabled: true,
+          pickupEnabled: true,
+          pickupLabel: "Самовывоз",
+        },
+        categories: [],
+        legalDocuments: [],
+      };
+    }
+    throw error;
+  }
 }

@@ -5,42 +5,41 @@ echo "============================================================"
 echo "  Установка и запуск mangal-site на Ubuntu VPS"
 echo "============================================================"
 
-# 1. Проверка Docker & Docker Compose
+# 1. Проверка зависимости Docker
 if ! command -v docker &> /dev/null; then
   echo "ОШИБКА: docker не установлен. Установите Docker: https://docs.docker.com/engine/install/ubuntu/"
   exit 1
 fi
 
 if ! docker compose version &> /dev/null; then
-  echo "ОШИБКА: docker compose не доступен."
+  echo "ОШИБКА: docker compose плагин недоступен."
   exit 1
 fi
 
-# 2. Проверка наличия .env
+# 2. Проверка наличии конфигурационного файла .env
 if [ ! -f ".env" ]; then
-  if [ -f "scripts/setup-client-env.sh" ]; then
-    echo "Файл .env не найден. Запускаем генерацию новой конфигурации..."
-    bash scripts/setup-client-env.sh
-  else
-    echo "ОШИБКА: Файл .env отсутствует. Создайте .env на основе .env.example"
-    exit 1
-  fi
+  echo "Файл .env не найден. Запускаем генератор конфигурации..."
+  bash scripts/setup-client-env.sh
 fi
 
-# 3. Создание необходимых директорий
+# 3. Валидация файла конфигурации Docker Compose
+echo "→ Проверка конфигурации Docker Compose..."
+docker compose config > /dev/null
+
+# 4. Подготовка локальных каталогов
 mkdir -p .data/media backups
 
-# 4. Запуск контейнеров через Docker Compose
-echo "→ Сборка и запуск контейнеров..."
+# 5. Сборка и запуск контейнеров
+echo "→ Сборка и запуск сервисов..."
 docker compose up -d --build
 
-# 5. Применение миграций Prisma
+# 6. Применение миграций PostgreSQL
 echo "→ Применение миграций базы данных..."
 docker compose exec -T platform npx prisma migrate deploy
 
 echo ""
 echo "============================================================"
-echo "  ПРОЕКТ УСПЕШНО ЗАПУЩЕН!"
+echo "  ПРОЕКТ УСПЕШНО УСТАНОВЛЕН И ЗАПУЩЕН!"
 echo "============================================================"
-echo "Статус контейнеров:"
+echo "Текущий статус сервисов:"
 docker compose ps
