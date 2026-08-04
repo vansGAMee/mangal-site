@@ -22,7 +22,6 @@ export function proxy(request: NextRequest) {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);

@@ -1,0 +1,29 @@
+:80 {
+  request_body {
+    max_size 10MB
+  }
+
+  handle_path /uploads/* {
+    root * /app/uploads
+    file_server {
+      hide .*
+    }
+  }
+
+  handle /_platform/* {
+    uri strip_prefix /_platform
+    reverse_proxy platform:8080
+  }
+
+  handle /api/* {
+    reverse_proxy platform:8080
+  }
+
+  handle /admin* {
+    reverse_proxy platform:8080
+  }
+
+  handle {
+    reverse_proxy storefront:3000
+  }
+}

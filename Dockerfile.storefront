@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.7
+
 FROM node:24-bookworm-slim AS dependencies
 WORKDIR /app
+
 COPY package.json package-lock.json ./
 COPY apps/storefront/package.json apps/storefront/package.json
 COPY apps/platform/package.json apps/platform/package.json
@@ -8,15 +10,39 @@ COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/catalog-seed/package.json packages/catalog-seed/package.json
 COPY packages/design-system/package.json packages/design-system/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
+
 RUN npm ci --no-audit --no-fund
+
 FROM dependencies AS build
-COPY . .
-RUN npm run build:storefront
-FROM node:24-bookworm-slim AS runtime
-ENV NODE_ENV=production PORT=3000
 WORKDIR /app
-RUN groupadd --system --gid 1001 mangal && useradd --system --uid 1001 --gid mangal mangal
-COPY --from=build --chown=mangal:mangal /app /app
+COPY . .
+
+RUN mkdir -p apps/storefront/public
+RUN npm run build:storefront
+
+RUN set -eux; \
+    mkdir -p /out; \
+    cp -a apps/storefront/.next/standalone/. /out/; \
+    mkdir -p /out/apps/storefront/.next/static; \
+    cp -a apps/storefront/.next/static/. /out/apps/storefront/.next/static/; \
+    mkdir -p /out/apps/storefront/public; \
+    cp -a apps/storefront/public/. /out/apps/storefront/public/; \
+    if [ -f /out/server.js ]; then \
+      mkdir -p /out/.next/static /out/public; \
+      cp -a apps/storefront/.next/static/. /out/.next/static/; \
+      cp -a apps/storefront/public/. /out/public/; \
+    fi
+
+FROM node:24-bookworm-slim AS runtime
+ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+WORKDIR /app
+
+RUN groupadd --system --gid 1001 mangal \
+ && useradd --system --uid 1001 --gid mangal mangal
+
+COPY --from=build --chown=mangal:mangal /out /app
+
 USER mangal
 EXPOSE 3000
-CMD ["node", "node_modules/next/dist/bin/next", "start", "apps/storefront", "-p", "3000"]
+
+CMD ["sh", "-c", "if [ -f /app/apps/storefront/server.js ]; then exec node /app/apps/storefront/server.js; else exec node /app/server.js; fi"]
