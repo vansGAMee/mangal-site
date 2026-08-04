@@ -6,7 +6,7 @@ const positiveInt = z.preprocess(blankToUndefined, z.coerce.number().int().posit
 
 const RuntimeEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.string().url().default("postgresql://dummy:dummy@127.0.0.1:5432/mangal?schema=public"),
   DATABASE_POOL_MAX: positiveInt.default(5),
   DATABASE_CONNECT_TIMEOUT_MS: positiveInt.default(5_000),
   DATABASE_STATEMENT_TIMEOUT_MS: positiveInt.default(10_000),

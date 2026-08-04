@@ -1,10 +1,7 @@
 import { PublicCatalogResponseSchema, type PublicCatalogResponse } from "@mangal/contracts";
 
 function platformApiUrl(): string {
-  const value = process.env.PLATFORM_API_URL ?? process.env.NEXT_PUBLIC_PLATFORM_API_URL;
-  if (!value) {
-    throw new Error("PLATFORM_API_URL is required to render the storefront catalog");
-  }
+  const value = process.env.PLATFORM_API_URL ?? process.env.NEXT_PUBLIC_PLATFORM_API_URL ?? "http://localhost:3001";
   return value.replace(/\/$/, "");
 }
 

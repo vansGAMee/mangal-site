@@ -5,6 +5,8 @@ coverage/
 playwright-report/
 test-results/
 .env
+.env.smoke
+.env.smoke.*
 .env.txt
 .env.*.txt
 .env.local

@@ -4,9 +4,13 @@ node_modules
 **/.next
 .git
 .env
-.env.*
+.env*
+backups
+uploads
+.data
+.pgdata
 coverage
 playwright-report
 test-results
 *.log
-
+*.dump
