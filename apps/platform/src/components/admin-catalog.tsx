@@ -62,36 +62,9 @@ export function AdminCatalog() {
         isAvailable: data.get("available") === "on",
       });
       setMessage("Сохранено");
-  async function removeProduct(productId: string) {
-    if (!confirm("Вы уверены, что хотите удалить это блюдо?")) return;
-    setMessage("Удаление...");
-    try {
-      await adminMutation(`/api/admin/catalog/products/${productId}`, "DELETE");
-      setMessage("Блюдо удалено");
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Ошибка при удалении");
-    }
-  }
-
-  async function addProduct(categoryId: string, form: HTMLFormElement) {
-    setMessage("Создание...");
-    const data = new FormData(form);
-    const name = String(data.get("name")).trim();
-    const price = Number(data.get("price"));
-    const label = String(data.get("label")).trim() || `${Math.round(price / 100)} ₽`;
-    try {
-      await adminMutation("/api/admin/catalog/products", "POST", {
-        categoryId,
-        name,
-        priceKopecks: price,
-        displayPriceLabel: label,
-      });
-      setMessage("Новое блюдо добавлено!");
-      form.reset();
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Ошибка при создании");
+      setMessage(error instanceof Error ? error.message : "Ошибка");
     }
   }
 
@@ -146,12 +119,12 @@ export function AdminCatalog() {
               void addProduct(category.id, e.currentTarget);
             }}
           >
-            <b>+ Добавить новое блюдо в «{category.name}»</b>
+            <b style={{ color: "#ff6b00" }}>+ Добавить новое блюдо в «{category.name}»</b>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginTop: 10 }}>
               <input className="admin-field" name="name" placeholder="Название блюда" required />
               <input className="admin-field" name="price" type="number" min="0" placeholder="Цена в коп. (н-р 25000 = 250₽)" required />
               <input className="admin-field" name="label" placeholder="Подпись (н-р '250 ₽')" />
-              <button className="admin-button" style={{ background: "#ff6b00" }}>+ Создать</button>
+              <button className="admin-button" style={{ background: "#ff6b00", color: "#fff" }}>+ Создать</button>
             </div>
           </form>
 
@@ -175,7 +148,7 @@ export function AdminCatalog() {
                    <button
                      type="button"
                      onClick={() => void removeProduct(product.id)}
-                     style={{ background: "#dc2626", color: "#fff", border: "none", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 12 }}
+                     style={{ background: "#dc2626", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 4, cursor: "pointer", fontSize: 13, fontWeight: "bold" }}
                    >
                      🗑 Удалить
                    </button>

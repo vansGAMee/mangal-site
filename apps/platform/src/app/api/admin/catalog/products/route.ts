@@ -31,7 +31,8 @@ export async function POST(request: Request): Promise<Response> {
         displayPriceLabel: parsed.data.displayPriceLabel,
         basePriceKopecks: parsed.data.priceKopecks,
         compositionText: parsed.data.compositionText || null,
-        position: count + 1,
+        pricingType: "FIXED",
+        saleUnit: "PORTION",
         isAvailable: true,
         isOrderable: true,
         requiresPriceConfirmation: false,
@@ -40,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     await db.adminAuditLog.create({
-      data: { adminUserId: admin.id, action: "PRODUCT_CREATED", targetType: "Product", targetId: product.id, requestId: id },
+      data: { adminUserId: admin.id, action: "PRODUCT_CREATED", targetType: "Product", targetId: product.id, requestId: id, metadata: {} },
     });
 
     return NextResponse.json(product, { status: 201 });
