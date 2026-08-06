@@ -196,7 +196,10 @@ const FALLBACK_CATALOG: PublicCatalogResponse = {
 
 const DEMO_IMAGE_MAP: Record<string, string> = {
   "shashlyk-iz-svininy": "/images/demo/shashlyk.jpg",
+  "shashlyk-v-lavashe": "/images/demo/shashlyk.jpg",
+  "lyulya-v-lavashe": "/images/demo/shashlyk.jpg",
   "shaurma-s-govyadinoy": "/images/demo/shaurma.jpg",
+  "shaurma-s-kuritsey": "/images/demo/shaurma.jpg",
   "syrnyy-sous": "/images/demo/sauce.jpg",
   "hot-dog-so-slivochnoy-sosiskoy": "/images/demo/hotdog.jpg",
   "burger-klassicheskiy": "/images/demo/burger.jpg",
@@ -208,10 +211,16 @@ function enrichCatalog(catalog: PublicCatalogResponse): PublicCatalogResponse {
     categories: catalog.categories.map((category) => ({
       ...category,
       products: category.products.map((product) => {
-        if (!product.imagePath || product.imagePath === "/images/product-placeholder.svg") {
+        if (!product.imagePath || product.imagePath === "/images/product-placeholder.svg" || product.imagePath === "") {
+          const fallback = DEMO_IMAGE_MAP[product.slug] 
+            ?? (product.slug.includes("shaurma") || product.slug.includes("doner") ? "/images/demo/shaurma.jpg"
+            : product.slug.includes("burger") ? "/images/demo/burger.jpg"
+            : product.slug.includes("sous") ? "/images/demo/sauce.jpg"
+            : product.slug.includes("hot-dog") ? "/images/demo/hotdog.jpg"
+            : "/images/demo/shashlyk.jpg");
           return {
             ...product,
-            imagePath: DEMO_IMAGE_MAP[product.slug] ?? "",
+            imagePath: fallback,
           };
         }
         return product;

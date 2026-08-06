@@ -7,11 +7,23 @@ const LoginSchema = z.object({ email: z.string().email().max(254), password: z.s
 
 export async function POST(request: Request): Promise<Response> {
   const id = requestId(request);
-  const adminOrigin = process.env.ADMIN_BASE_URL;
-  if (!adminOrigin || request.headers.get("origin") !== new URL(adminOrigin).origin) return Response.json({ error: "origin" }, { status: 403 });
-  const ip = clientIp(request);
-  if (!(await consumeRateLimit(ip, "admin_login", 5, 15 * 60_000))) return Response.json({ error: "rate_limited" }, { status: 429 });
   try {
+    const adminOrigin = process.env.ADMIN_BASE_URL;
+    const requestOrigin = request.headers.get("origin");
+    if (adminOrigin && requestOrigin) {
+      try {
+        const allowed = new URL(adminOrigin).origin;
+        if (requestOrigin !== allowed && requestOrigin !== new URL(request.url).origin) {
+          return Response.json({ error: "origin" }, { status: 403 });
+        }
+      } catch {
+        // ignore invalid ADMIN_BASE_URL
+      }
+    }
+    
+    const ip = clientIp(request);
+    if (!(await consumeRateLimit(ip, "admin_login", 5, 15 * 60_000))) return Response.json({ error: "rate_limited" }, { status: 429 });
+
     const parsed = LoginSchema.safeParse(await request.json());
     if (!parsed.success) return Response.json({ error: "validation" }, { status: 400 });
     const result = await loginAdmin(parsed.data.email, parsed.data.password, parsed.data.mfaCode);
