@@ -62,9 +62,36 @@ export function AdminCatalog() {
         isAvailable: data.get("available") === "on",
       });
       setMessage("Сохранено");
+  async function removeProduct(productId: string) {
+    if (!confirm("Вы уверены, что хотите удалить это блюдо?")) return;
+    setMessage("Удаление...");
+    try {
+      await adminMutation(`/api/admin/catalog/products/${productId}`, "DELETE");
+      setMessage("Блюдо удалено");
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Ошибка");
+      setMessage(error instanceof Error ? error.message : "Ошибка при удалении");
+    }
+  }
+
+  async function addProduct(categoryId: string, form: HTMLFormElement) {
+    setMessage("Создание...");
+    const data = new FormData(form);
+    const name = String(data.get("name")).trim();
+    const price = Number(data.get("price"));
+    const label = String(data.get("label")).trim() || `${Math.round(price / 100)} ₽`;
+    try {
+      await adminMutation("/api/admin/catalog/products", "POST", {
+        categoryId,
+        name,
+        priceKopecks: price,
+        displayPriceLabel: label,
+      });
+      setMessage("Новое блюдо добавлено!");
+      form.reset();
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ошибка при создании");
     }
   }
 
