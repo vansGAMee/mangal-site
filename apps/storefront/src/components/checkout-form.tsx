@@ -64,8 +64,7 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
       },
     };
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_PLATFORM_API_URL;
-      if (!apiUrl) throw new Error("Публичный API оформления не настроен");
+      const apiUrl = process.env.NEXT_PUBLIC_PLATFORM_API_URL || "https://mangal-site-stkl.vercel.app";
       const response = await fetch(`${apiUrl}/api/checkout`, {
         method: "POST",
         mode: "cors",

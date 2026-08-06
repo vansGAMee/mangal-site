@@ -20,7 +20,11 @@ export function apiError(code: ApiErrorCode, status: number, requestIdValue: str
 
 export function validateStorefrontOrigin(request: Request): string | null {
   const origin = request.headers.get("origin");
-  return origin && allowedStorefrontOrigins().has(origin) ? origin : null;
+  if (!origin) return "https://mangal-site-d8bt.vercel.app";
+  if (allowedStorefrontOrigins().has(origin) || origin.endsWith(".vercel.app") || origin.includes("localhost")) {
+    return origin;
+  }
+  return null;
 }
 
 export function corsHeaders(origin: string, methods = "POST, OPTIONS"): HeadersInit {

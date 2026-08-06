@@ -16,10 +16,9 @@ export function formatRubles(kopecks: number): string {
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <svg className={cn("h-11 w-11", className)} viewBox="0 0 52 52" aria-hidden="true">
-      <path d="M8 40 19 10l7 19 7-19 11 30" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M13 34h26" fill="none" stroke="currentColor" strokeWidth="2" />
-    </svg>
+    <span className={cn("inline-flex items-center justify-center rounded-md bg-[#ff6b00] text-white font-black text-sm px-2 py-0.5 leading-none shadow-sm", className)}>
+      Ш
+    </span>
   );
 }
 
