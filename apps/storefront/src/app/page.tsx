@@ -8,15 +8,14 @@ export default async function HomePage() {
   const restaurantJsonLd = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
-    name: "МАНГАЛ",
+    name: "Шаверма Воронеж",
     url: process.env.NEXT_PUBLIC_SITE_URL,
-    telephone: catalog.store.phoneHref,
     hasMenu: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/#menu`,
   };
   const menuJsonLd = {
     "@context": "https://schema.org",
     "@type": "Menu",
-    name: "Меню «МАНГАЛ»",
+    name: "Меню «Шаверма Воронеж»",
     hasMenuSection: catalog.categories.map((category) => ({
       "@type": "MenuSection", name: category.name,
       hasMenuItem: category.products.map((product) => ({ "@type": "MenuItem", name: product.name, description: product.compositionText ?? undefined })),
@@ -28,18 +27,15 @@ export default async function HomePage() {
     <section className="shell pt-8 pb-12 md:pt-14 md:pb-16 border-b hairline">
       <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div>
-          <p className="eyebrow mb-4 text-[var(--ember)] font-medium tracking-wider">ГОТОВИМ НА ОТКРЫТОМ ОГНЕ · {catalog.store.leadTimeMinutes} МИН</p>
-          <h1 className="display text-5xl md:text-7xl leading-[1.05] mb-5 text-[var(--charcoal)]">МАНГАЛ</h1>
+          <p className="eyebrow mb-4 text-[var(--ember)] font-medium tracking-wider">СОЧНО · БЫСТРО · ВКУСНО · {catalog.store.leadTimeMinutes} МИН</p>
+          <h1 className="display text-5xl md:text-7xl leading-[1.05] mb-5 text-[var(--charcoal)]">Шаверма Воронеж</h1>
           <p className="text-base md:text-lg leading-relaxed text-[var(--muted)] max-w-lg mb-7">
-            Шаурма, бургеры, донеры и мясо на углях. Закажите на сайте или позвоните нам.
+            Сочная шаурма, легендарные бургеры, донеры и блюда на мангале с доставкой до двери.
           </p>
           
           <div className="flex flex-wrap items-center gap-4 mb-8">
-            <a href="#menu" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--ember)] px-7 font-medium text-white transition-colors hover:bg-[#b03010] shadow-sm">
+            <a href="#menu" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--ember)] px-8 font-medium text-white transition-colors hover:bg-[#b03010] shadow-sm">
               Смотреть меню
-            </a>
-            <a href={`tel:${catalog.store.phoneHref}`} className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[var(--line)] bg-white px-6 font-medium text-[var(--charcoal)] transition-colors hover:bg-[#f5efe6]">
-              Позвонить: {catalog.store.phoneDisplay}
             </a>
           </div>
 
