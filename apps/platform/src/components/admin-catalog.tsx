@@ -62,23 +62,67 @@ export function AdminCatalog() {
         isAvailable: data.get("available") === "on",
       });
       setMessage("Сохранено");
+  async function removeProduct(productId: string) {
+    if (!confirm("Вы уверены, что хотите удалить это блюдо?")) return;
+    setMessage("Удаление...");
+    try {
+      await adminMutation(`/api/admin/catalog/products/${productId}`, "DELETE");
+      setMessage("Блюдо удалено");
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Ошибка");
+      setMessage(error instanceof Error ? error.message : "Ошибка при удалении");
+    }
+  }
+
+  async function addProduct(categoryId: string, form: HTMLFormElement) {
+    setMessage("Создание...");
+    const data = new FormData(form);
+    const name = String(data.get("name")).trim();
+    const price = Number(data.get("price"));
+    const label = String(data.get("label")).trim() || `${Math.round(price / 100)} ₽`;
+    try {
+      await adminMutation("/api/admin/catalog/products", "POST", {
+        categoryId,
+        name,
+        priceKopecks: price,
+        displayPriceLabel: label,
+      });
+      setMessage("Новое блюдо добавлено!");
+      form.reset();
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ошибка при создании");
     }
   }
 
   return (
     <section style={{ padding: "30px 0" }}>
       <h1>Каталог</h1>
-      <p>
-        Цены — целые копейки. Снятие «цена уточняется» возможно только вместе с подтверждённой ценой и orderable-флагом.
-      </p>
+      <p>Управление блюдами: добавление новых позиций, изменение цен, фото и удаление ненужных.</p>
       {message ? <p role="status" style={{ color: "#ff6b00", fontWeight: "bold" }}>{message}</p> : null}
       {categories.map((category) => (
         <div key={category.id}>
-          <h2 style={{ marginTop: 38 }}>{category.name}</h2>
-          <div style={{ display: "grid", gap: 10 }}>
+          <h2 style={{ marginTop: 38, borderBottom: "1px solid #ddd", paddingBottom: 8 }}>{category.name}</h2>
+          
+          {/* Add Product Form */}
+          <form
+            className="admin-card"
+            style={{ background: "#fdf8f5", border: "1px dashed #ff6b00", marginTop: 12 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void addProduct(category.id, e.currentTarget);
+            }}
+          >
+            <b>+ Добавить новое блюдо в «{category.name}»</b>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginTop: 10 }}>
+              <input className="admin-field" name="name" placeholder="Название блюда" required />
+              <input className="admin-field" name="price" type="number" min="0" placeholder="Цена в коп. (н-р 25000 = 250₽)" required />
+              <input className="admin-field" name="label" placeholder="Подпись (н-р '250 ₽')" />
+              <button className="admin-button" style={{ background: "#ff6b00" }}>+ Создать</button>
+            </div>
+          </form>
+
+          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
             {category.products.map((product) => (
               <form
                 key={product.id}
@@ -88,11 +132,20 @@ export function AdminCatalog() {
                   void save(product, event.currentTarget);
                 }}
               >
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                   {product.imagePath && product.imagePath !== "/images/product-placeholder.svg" && (
-                     <img src={product.imagePath} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />
-                   )}
-                   <b>{product.name}</b>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                     {product.imagePath && product.imagePath !== "/images/product-placeholder.svg" && (
+                       <img src={product.imagePath} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />
+                     )}
+                     <b>{product.name}</b>
+                   </div>
+                   <button
+                     type="button"
+                     onClick={() => void removeProduct(product.id)}
+                     style={{ background: "#dc2626", color: "#fff", border: "none", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 12 }}
+                   >
+                     🗑 Удалить
+                   </button>
                 </div>
                 <div
                   style={{
