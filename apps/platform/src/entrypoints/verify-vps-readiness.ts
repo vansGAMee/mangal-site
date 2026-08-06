@@ -67,7 +67,7 @@ async function runVerification() {
       const setCookies = loginRes.headers.getSetCookie ? loginRes.headers.getSetCookie() : [loginRes.headers.get("set-cookie") ?? ""];
       sessionCookie = setCookies.map((c) => c.split(";")[0]).join("; ");
       const csrfMatch = sessionCookie.match(/mangal_csrf_dev=([^;]+)/);
-      if (csrfMatch) csrfTokenHeader = csrfMatch[1];
+      if (csrfMatch && csrfMatch[1]) csrfTokenHeader = csrfMatch[1];
     } else {
       // Fallback if rate-limited: create test admin session directly in DB
       const testToken = randomBytes(32).toString("base64url");
