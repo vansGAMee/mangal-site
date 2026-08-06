@@ -62,6 +62,12 @@ export function AdminCatalog() {
         isAvailable: data.get("available") === "on",
       });
       setMessage("Сохранено");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ошибка");
+    }
+  }
+
   async function removeProduct(productId: string) {
     if (!confirm("Вы уверены, что хотите удалить это блюдо?")) return;
     setMessage("Удаление...");
