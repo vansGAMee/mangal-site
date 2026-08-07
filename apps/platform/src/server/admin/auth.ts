@@ -106,11 +106,16 @@ export async function validateAdminMutation(request: Request): Promise<Authentic
       const urlHost = new URL(request.url).host;
       const configuredHost = process.env.ADMIN_BASE_URL ? new URL(process.env.ADMIN_BASE_URL).host : null;
 
+      const originDomain = originHost.toLowerCase();
+      const reqHostDomain = (forwardedHost || hostHeader || urlHost || "").toLowerCase();
+      const isVercelDomain = originDomain.endsWith(".vercel.app") && reqHostDomain.endsWith(".vercel.app");
+
       const isAllowed =
         (forwardedHost && originHost === forwardedHost) ||
         (hostHeader && originHost === hostHeader) ||
         (urlHost && originHost === urlHost) ||
-        (configuredHost !== null && originHost === configuredHost);
+        (configuredHost !== null && originHost === configuredHost) ||
+        isVercelDomain;
 
       if (!isAllowed) throw new AdminAuthError("origin");
     } catch (e) {
