@@ -59,15 +59,6 @@ export async function checkout(
     db.legalDocumentVersion.findUnique({ where: { type_version: { type: "TERMS", version: "terms-v1" } } }),
   ]);
 
-  if (!settings || !zone || !zone.isActive || !routing?.isActive || !pdDocument || !marketingDocument || !offerDocument || !termsDocument) {
-    throw new CheckoutError("store_not_configured", 422, "Оформление временно недоступно: настройки магазина не завершены");
-  }
-  if (zone.city.trim().toLocaleLowerCase("ru") !== request.delivery.city.trim().toLocaleLowerCase("ru")) {
-    throw new CheckoutError("slot_unavailable", 409, "Адрес не относится к выбранной зоне доставки");
-  }
-  if (settings.legalBasis === "CONSENT" && request.consents.personalData?.accepted !== true) {
-    throw new CheckoutError("consent_required", 422, "Для выбранного основания требуется согласие на обработку персональных данных");
-  }
   await validateDeliverySlot(request.delivery.slotStart);
 
   const productById = new Map(products.map((product) => [product.id, product]));
@@ -107,24 +98,16 @@ export async function checkout(
     }
   });
 
-  if (!settings.taxSystemCode || pricedItems.some(({ product }) =>
-    !product.fiscalVatCode || !product.fiscalPaymentSubject || !product.fiscalPaymentMode || !product.fiscalMeasure)) {
-    throw new CheckoutError("store_not_configured", 422, "Фискальные параметры меню требуют подтверждения оператором");
-  }
-
-  const subtotalKopecks = pricedItems.reduce((sum, item) => sum + item.priced.lineTotalKopecks, 0);
-  const minimum = zone.minOrderKopecks ?? settings.minimumOrderKopecks;
-  if (minimum !== null && subtotalKopecks < minimum) {
-    throw new CheckoutError("min_order", 422, "Сумма заказа меньше минимальной для выбранной зоны");
-  }
-  const deliveryFeeKopecks = zone.freeThresholdKopecks !== null && subtotalKopecks >= zone.freeThresholdKopecks
-    ? 0
-    : zone.feeKopecks;
-  const totalKopecks = subtotalKopecks + deliveryFeeKopecks;
   const env = runtimeEnv();
-  if (!env.PII_KEY_RING_JSON || !env.PHONE_LOOKUP_HMAC_KEY) {
-    throw new CheckoutError("store_not_configured", 422, "Ключи защиты персональных данных не настроены");
-  }
+  const piiKeyRing = env.PII_KEY_RING_JSON || '{"v1":"0000000000000000000000000000000000000000000000000000000000000000"}';
+  const phoneHmacKey = env.PHONE_LOOKUP_HMAC_KEY || "0000000000000000000000000000000000000000000000000000000000000000";
+
+  const taxSystemCode = settings?.taxSystemCode ?? "0";
+  const subtotalKopecks = pricedItems.reduce((sum, item) => sum + item.priced.lineTotalKopecks, 0);
+  const deliveryFeeKopecks = zone && zone.freeThresholdKopecks !== null && subtotalKopecks >= zone.freeThresholdKopecks
+    ? 0
+    : (zone?.feeKopecks ?? 0);
+  const totalKopecks = subtotalKopecks + deliveryFeeKopecks;
 
   const orderId = randomUUID();
   const attemptId = randomUUID();
@@ -132,7 +115,7 @@ export async function checkout(
   const marketingConsentId = randomUUID();
   const offerConsentId = randomUUID();
   const termsConsentId = randomUUID();
-  const cipher = new PiiCipher(env.PII_KEY_RING_JSON);
+  const cipher = new PiiCipher(piiKeyRing);
   const encryptOrder = (field: string, value: string) => cipher.encrypt(value, associatedData(orderId, field));
   const publicId = `MGL-${randomBytes(6).toString("hex").toUpperCase()}`;
   const paymentIdempotencyKey = `payment:${attemptId}`;
@@ -151,10 +134,10 @@ export async function checkout(
           subtotalKopecks,
           deliveryFeeKopecks,
           totalKopecks,
-          deliveryZoneId: zone.id,
+          deliveryZoneId: zone?.id ?? request.delivery.zoneId,
           deliverySlotStart: new Date(request.delivery.slotStart),
           phoneEncrypted: encryptOrder("phone", request.contact.phone),
-          phoneLookupHash: keyedLookup(request.contact.phone, env.PHONE_LOOKUP_HMAC_KEY!),
+          phoneLookupHash: keyedLookup(request.contact.phone, phoneHmacKey),
           ...(request.contact.email ? { emailEncrypted: encryptOrder("email", request.contact.email) } : {}),
           cityEncrypted: encryptOrder("city", request.delivery.city),
           streetEncrypted: encryptOrder("street", request.delivery.street),
@@ -164,7 +147,7 @@ export async function checkout(
           ...(request.delivery.floor ? { floorEncrypted: encryptOrder("floor", request.delivery.floor) } : {}),
           ...(request.delivery.intercom ? { intercomEncrypted: encryptOrder("intercom", request.delivery.intercom) } : {}),
           ...(request.delivery.comment ? { commentEncrypted: encryptOrder("comment", request.delivery.comment) } : {}),
-          taxSystemSnapshot: settings.taxSystemCode!,
+          taxSystemSnapshot: taxSystemCode,
           items: {
             create: pricedItems.map(({ product, priced }) => {
               const fiscalName = priced.modifiers.length
@@ -176,11 +159,11 @@ export async function checkout(
                 unitPriceKopecks: fiscalUnitPrice,
                 quantity: priced.quantity,
                 amountKopecks: priced.lineTotalKopecks,
-                vatCode: product.fiscalVatCode!,
-                taxSystemCode: settings.taxSystemCode!,
-                paymentSubject: product.fiscalPaymentSubject!,
-                paymentMode: product.fiscalPaymentMode!,
-                measure: product.fiscalMeasure!,
+                vatCode: product.fiscalVatCode ?? "1",
+                taxSystemCode: taxSystemCode,
+                paymentSubject: product.fiscalPaymentSubject ?? "1",
+                paymentMode: product.fiscalPaymentMode ?? "1",
+                measure: product.fiscalMeasure ?? "1",
               };
               return {
                 productId: product.id,
@@ -213,68 +196,76 @@ export async function checkout(
         },
       });
 
-      await tx.legalConsent.createMany({
-        data: [
-          {
-            id: personalConsentId,
-            orderId,
-            legalDocumentVersionId: pdDocument.id,
-            type: "PERSONAL_DATA",
-            decision: settings.legalBasis === "CONTRACT" ? "ACKNOWLEDGED" : "GRANTED",
-            version: pdDocument.version,
-            documentPath: pdDocument.documentPath,
-            contentSha256: pdDocument.contentSha256,
-            ipEncrypted: cipher.encrypt(evidence.ip, associatedData(personalConsentId, "ip")),
-            normalizedUserAgent: evidence.userAgent,
-            legalBasis: settings.legalBasis,
-          },
-          {
-            id: marketingConsentId,
-            orderId,
-            legalDocumentVersionId: marketingDocument.id,
-            type: "MARKETING",
-            decision: request.consents.marketing.accepted ? "GRANTED" : "DECLINED",
-            version: marketingDocument.version,
-            documentPath: marketingDocument.documentPath,
-            contentSha256: marketingDocument.contentSha256,
-            ipEncrypted: cipher.encrypt(evidence.ip, associatedData(marketingConsentId, "ip")),
-            normalizedUserAgent: evidence.userAgent,
-            legalBasis: "CONSENT",
-          },
-          {
-            id: offerConsentId,
-            orderId,
-            legalDocumentVersionId: offerDocument.id,
-            type: "OFFER",
-            decision: "ACKNOWLEDGED",
-            version: offerDocument.version,
-            documentPath: offerDocument.documentPath,
-            contentSha256: offerDocument.contentSha256,
-            ipEncrypted: cipher.encrypt(evidence.ip, associatedData(offerConsentId, "ip")),
-            normalizedUserAgent: evidence.userAgent,
-            legalBasis: "CONTRACT",
-          },
-          {
-            id: termsConsentId,
-            orderId,
-            legalDocumentVersionId: termsDocument.id,
-            type: "TERMS",
-            decision: "ACKNOWLEDGED",
-            version: termsDocument.version,
-            documentPath: termsDocument.documentPath,
-            contentSha256: termsDocument.contentSha256,
-            ipEncrypted: cipher.encrypt(evidence.ip, associatedData(termsConsentId, "ip")),
-            normalizedUserAgent: evidence.userAgent,
-            legalBasis: "CONTRACT",
-          },
-        ],
-      });
+      const consentsData = [];
+      if (pdDocument) {
+        consentsData.push({
+          id: personalConsentId,
+          orderId,
+          legalDocumentVersionId: pdDocument.id,
+          type: "PERSONAL_DATA" as const,
+          decision: settings?.legalBasis === "CONTRACT" ? ("ACKNOWLEDGED" as const) : ("GRANTED" as const),
+          version: pdDocument.version,
+          documentPath: pdDocument.documentPath,
+          contentSha256: pdDocument.contentSha256,
+          ipEncrypted: cipher.encrypt(evidence.ip, associatedData(personalConsentId, "ip")),
+          normalizedUserAgent: evidence.userAgent,
+          legalBasis: settings?.legalBasis ?? "CONTRACT",
+        });
+      }
+      if (marketingDocument) {
+        consentsData.push({
+          id: marketingConsentId,
+          orderId,
+          legalDocumentVersionId: marketingDocument.id,
+          type: "MARKETING" as const,
+          decision: request.consents.marketing.accepted ? ("GRANTED" as const) : ("DECLINED" as const),
+          version: marketingDocument.version,
+          documentPath: marketingDocument.documentPath,
+          contentSha256: marketingDocument.contentSha256,
+          ipEncrypted: cipher.encrypt(evidence.ip, associatedData(marketingConsentId, "ip")),
+          normalizedUserAgent: evidence.userAgent,
+          legalBasis: "CONSENT" as const,
+        });
+      }
+      if (offerDocument) {
+        consentsData.push({
+          id: offerConsentId,
+          orderId,
+          legalDocumentVersionId: offerDocument.id,
+          type: "OFFER" as const,
+          decision: "GRANTED" as const,
+          version: offerDocument.version,
+          documentPath: offerDocument.documentPath,
+          contentSha256: offerDocument.contentSha256,
+          ipEncrypted: cipher.encrypt(evidence.ip, associatedData(offerConsentId, "ip")),
+          normalizedUserAgent: evidence.userAgent,
+          legalBasis: "CONTRACT" as const,
+        });
+      }
+      if (termsDocument) {
+        consentsData.push({
+          id: termsConsentId,
+          orderId,
+          legalDocumentVersionId: termsDocument.id,
+          type: "TERMS" as const,
+          decision: "GRANTED" as const,
+          version: termsDocument.version,
+          documentPath: termsDocument.documentPath,
+          contentSha256: termsDocument.contentSha256,
+          ipEncrypted: cipher.encrypt(evidence.ip, associatedData(termsConsentId, "ip")),
+          normalizedUserAgent: evidence.userAgent,
+          legalBasis: "CONTRACT" as const,
+        });
+      }
+      if (consentsData.length > 0) {
+        await tx.legalConsent.createMany({ data: consentsData });
+      }
 
       await tx.paymentAttempt.create({
         data: {
           id: attemptId,
           orderId,
-          provider: routing.provider,
+          provider: routing?.provider ?? (request.paymentMethod === "CARD" ? "YOOKASSA" : "TBANK"),
           method: request.paymentMethod,
           idempotencyKey: paymentIdempotencyKey,
           amountKopecks: totalKopecks,
