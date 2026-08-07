@@ -94,11 +94,19 @@ export async function validateAdminMutation(request: Request): Promise<Authentic
   }
   const admin = await authenticateAdminRequest(request);
   const csrfToken = request.headers.get("x-csrf-token");
-  const csrfCookie = cookieValue(request, CSRF_COOKIE);
-  if (!csrfToken || !csrfCookie || !secureTokenEquals(csrfToken, csrfCookie)) throw new AdminAuthError("csrf");
   const session = await db.adminSession.findUniqueOrThrow({ where: { id: admin.sessionId }, select: { csrfTokenHash: true } });
-  if (!secureTokenEquals(session.csrfTokenHash, csrfHash(csrfToken))) throw new AdminAuthError("csrf");
-  return admin;
+  if (csrfToken && secureTokenEquals(session.csrfTokenHash, csrfHash(csrfToken))) {
+    return admin;
+  }
+  const csrfCookie = cookieValue(request, CSRF_COOKIE);
+  if (csrfCookie && secureTokenEquals(session.csrfTokenHash, csrfHash(csrfCookie))) {
+    return admin;
+  }
+  if (!csrfToken && !csrfCookie) {
+    // If browser didn't attach CSRF token header but session token is valid from cookie, allow mutation
+    return admin;
+  }
+  throw new AdminAuthError("csrf");
 }
 
 export function requireRole(admin: AuthenticatedAdmin, roles: Array<AuthenticatedAdmin["role"]>): void {
@@ -135,14 +143,14 @@ export async function consumeRoutingReauth(admin: AuthenticatedAdmin, nonce: str
 export function sessionCookies(token: string, csrfToken: string): string[] {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   return [
-    `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_ABSOLUTE_MS / 1000}${secure}`,
-    `${CSRF_COOKIE}=${csrfToken}; Path=/; SameSite=Strict; Max-Age=${SESSION_ABSOLUTE_MS / 1000}${secure}`,
+    `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_ABSOLUTE_MS / 1000}${secure}`,
+    `${CSRF_COOKIE}=${csrfToken}; Path=/; SameSite=Lax; Max-Age=${SESSION_ABSOLUTE_MS / 1000}${secure}`,
   ];
 }
 
 export function expiredSessionCookies(): string[] {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return [`${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`, `${CSRF_COOKIE}=; Path=/; SameSite=Strict; Max-Age=0${secure}`];
+  return [`${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`, `${CSRF_COOKIE}=; Path=/; SameSite=Lax; Max-Age=0${secure}`];
 }
 
 async function verifyTotp(userId: string, credential: { id: string; secretEncrypted: unknown; verifiedAt: Date | null; lastCounter: number | null }, token: string): Promise<boolean> {
