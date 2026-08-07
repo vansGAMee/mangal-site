@@ -17,9 +17,9 @@ export function formatRubles(kopecks: number): string {
 export function BrandMark({ className }: { className?: string }) {
   return (
     <img
-      src="https://sun9-66.vkuserphoto.ru/s/v1/ig2/AhL3byQRbZlXetQfvxgb_i5sKVjnL-ucAC12r7dABYjixmbyn-xc4T8K9vcuSiFmpnl1LAYPbE-wQqzsyfBZru_j.jpg?quality=95&crop=0,0,1001,1001&ava=1"
+      src="/images/shaverma-logo.png"
       alt="Шаверма Воронеж"
-      className={cn("h-8 w-8 rounded-full object-cover border border-[#ff6b00]/30 shadow-sm", className)}
+      className={cn("h-9 w-9 rounded-md object-cover border border-[#ff6b00]/30 shadow-sm", className)}
     />
   );
 }
