@@ -7,6 +7,7 @@ import { adminMutation } from "./admin-api";
 type Order = {
   id: string;
   publicId: string;
+  isTest: boolean;
   paymentStatus: string;
   fulfillmentStatus: string;
   totalKopecks: number;
@@ -110,7 +111,10 @@ export function AdminOrder({ orderId }: { orderId: string }) {
 
   return (
     <section style={{ padding: "30px 0" }}>
-      <h1>{currentOrder.publicId}</h1>
+      <h1>
+        {currentOrder.isTest && <span style={{ background: "#f97316", color: "#000", padding: "2px 10px", borderRadius: 4, fontWeight: "bold", marginRight: 10, fontSize: 14 }}>🧪 ТЕСТ</span>}
+        {currentOrder.publicId}
+      </h1>
       <p>
         {currentOrder.paymentStatus} · {currentOrder.fulfillmentStatus} ·{" "}
         {formatRubles(currentOrder.totalKopecks)} · v{currentOrder.version}

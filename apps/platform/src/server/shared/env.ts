@@ -24,6 +24,7 @@ const RuntimeEnvSchema = z.object({
   TBANK_TERMINAL_KEY: optionalTrimmed,
   TBANK_PASSWORD: optionalTrimmed,
   TBANK_API_BASE_URL: z.string().url().default("https://securepay.tinkoff.ru/v2"),
+  CHECKOUT_TEST_MODE: z.enum(["true", "false"]).optional(),
 });
 
 export type RuntimeEnv = z.infer<typeof RuntimeEnvSchema>;

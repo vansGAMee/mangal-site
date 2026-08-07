@@ -5,7 +5,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const admin = await authenticateAdminRequest(request);
     const [orders, unpriced, zones, routes, settings, unknown, reconciliation, refunds] = await Promise.all([
-      db.order.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { id: true, publicId: true, paymentStatus: true, fulfillmentStatus: true, totalKopecks: true, version: true, createdAt: true } }),
+      db.order.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { id: true, publicId: true, isTest: true, paymentStatus: true, fulfillmentStatus: true, totalKopecks: true, version: true, createdAt: true } }),
       db.product.count({ where: { requiresPriceConfirmation: true } }),
       db.deliveryZone.count({ where: { isActive: true } }),
       db.paymentRouting.findMany(),

@@ -23,10 +23,72 @@ export class CheckoutError extends Error {
   }
 }
 
+// ------------------------------------------------------------------
+// Bootstrap helpers — создают минимальные конфиг-записи если их нет.
+// НЕ трогают Product/Category/imagePath.
+// ------------------------------------------------------------------
+
+async function ensureOperatingHours(): Promise<void> {
+  const count = await db.operatingHours.count();
+  if (count > 0) return;
+  const days = [
+    { weekday: 1, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
+    { weekday: 2, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
+    { weekday: 3, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
+    { weekday: 4, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
+    { weekday: 5, opensAt: "09:00", closesAt: "23:00", slotLength: 30 },
+    { weekday: 6, opensAt: "10:00", closesAt: "23:00", slotLength: 30 },
+    { weekday: 0, opensAt: "10:00", closesAt: "22:00", slotLength: 30 },
+  ];
+  await db.operatingHours.createMany({ data: days, skipDuplicates: true });
+}
+
+async function ensureLegalDocumentVersions(): Promise<void> {
+  const docs = [
+    { type: "PERSONAL_DATA" as const, version: "pd-v1", documentPath: "/legal/privacy", contentSha256: "placeholder-sha256-pd" },
+    { type: "MARKETING" as const, version: "marketing-v1", documentPath: "/legal/marketing", contentSha256: "placeholder-sha256-mkt" },
+    { type: "OFFER" as const, version: "offer-v1", documentPath: "/legal/offer", contentSha256: "placeholder-sha256-offer" },
+    { type: "TERMS" as const, version: "terms-v1", documentPath: "/legal/terms", contentSha256: "placeholder-sha256-terms" },
+  ];
+  for (const doc of docs) {
+    await db.legalDocumentVersion.upsert({
+      where: { type_version: { type: doc.type, version: doc.version } },
+      create: doc,
+      update: {},
+    });
+  }
+}
+
+async function ensureDeliveryZone(): Promise<string> {
+  const zone = await db.deliveryZone.findFirst({ where: { isActive: true } });
+  if (zone) return zone.id;
+  const created = await db.deliveryZone.create({
+    data: { name: "Самовывоз / Основная зона", city: "Маркс", feeKopecks: 0, freeThresholdKopecks: 0, isActive: true },
+  });
+  return created.id;
+}
+
+async function ensurePaymentRouting(): Promise<void> {
+  await db.paymentRouting.upsert({
+    where: { method: "CARD" },
+    create: { method: "CARD", provider: "YOOKASSA", isActive: false },
+    update: {},
+  });
+  await db.paymentRouting.upsert({
+    where: { method: "SBP" },
+    create: { method: "SBP", provider: "TBANK", isActive: false },
+    update: {},
+  });
+}
+
+// ------------------------------------------------------------------
+
 export async function checkout(
   request: CheckoutRequest,
   evidence: { ip: string; userAgent: string },
 ): Promise<PaymentConfirmation> {
+  const isTestMode = process.env.CHECKOUT_TEST_MODE === "true";
+
   const requestHash = sha256(stableJson(request));
   const existing = await db.order.findUnique({
     where: { checkoutId: request.checkoutId },
@@ -36,12 +98,28 @@ export async function checkout(
     if (existing.checkoutRequestHash !== requestHash) {
       throw new CheckoutError("checkout_conflict", 409, "checkoutId уже использован для другого запроса");
     }
+    if (isTestMode || (existing as Record<string, unknown>).isTest) {
+      return {
+        orderPublicId: existing.publicId,
+        paymentStatus: existing.paymentStatus,
+        confirmationType: "TEST_MODE",
+        confirmationUrl: null,
+        confirmationData: null,
+      };
+    }
     const attempt = existing.paymentAttempts[0];
     if (!attempt) throw new CheckoutError("store_not_configured", 422, "Платёжная попытка заказа отсутствует");
     return initializeOrReturn(attempt.id);
   }
 
-  const [products, zone, settings, routing, pdDocument, marketingDocument, offerDocument, termsDocument] = await Promise.all([
+  // Bootstrap конфиг-таблиц если пусты
+  await Promise.all([
+    ensureOperatingHours(),
+    ensureLegalDocumentVersions(),
+    ensurePaymentRouting(),
+  ]);
+
+  const [products, settings, pdDocument, marketingDocument, offerDocument, termsDocument] = await Promise.all([
     db.product.findMany({
       where: { id: { in: request.items.map((item) => item.productId) } },
       include: {
@@ -50,14 +128,38 @@ export async function checkout(
         },
       },
     }),
-    db.deliveryZone.findUnique({ where: { id: request.delivery.zoneId } }),
     db.storeSettings.findUnique({ where: { id: "singleton" } }),
-    db.paymentRouting.findUnique({ where: { method: request.paymentMethod } }),
     db.legalDocumentVersion.findUnique({ where: { type_version: { type: "PERSONAL_DATA", version: "pd-v1" } } }),
     db.legalDocumentVersion.findUnique({ where: { type_version: { type: "MARKETING", version: "marketing-v1" } } }),
     db.legalDocumentVersion.findUnique({ where: { type_version: { type: "OFFER", version: "offer-v1" } } }),
     db.legalDocumentVersion.findUnique({ where: { type_version: { type: "TERMS", version: "terms-v1" } } }),
   ]);
+
+  // Найти или создать зону доставки
+  let zone = await db.deliveryZone.findUnique({ where: { id: request.delivery.zoneId } });
+  if (!zone) {
+    // Взять первую активную зону или создать новую
+    const fallbackZoneId = await ensureDeliveryZone();
+    zone = await db.deliveryZone.findUnique({ where: { id: fallbackZoneId } });
+  }
+
+  const routing = await db.paymentRouting.findUnique({ where: { method: request.paymentMethod } });
+
+  // --- Проверки PRODUCTION MODE ---
+  if (!isTestMode) {
+    if (!settings) {
+      throw new CheckoutError("store_not_configured", 422, "Настройки магазина не завершены");
+    }
+    if (!zone || !zone.isActive) {
+      throw new CheckoutError("store_not_configured", 422, "Зона доставки недоступна");
+    }
+    if (!routing?.isActive) {
+      throw new CheckoutError("store_not_configured", 422, "Эквайер не настроен: свяжитесь с оператором");
+    }
+    if (settings.legalBasis === "CONSENT" && request.consents.personalData?.accepted !== true) {
+      throw new CheckoutError("consent_required", 422, "Для выбранного основания требуется согласие на обработку персональных данных");
+    }
+  }
 
   await validateDeliverySlot(request.delivery.slotStart);
 
@@ -98,12 +200,21 @@ export async function checkout(
     }
   });
 
+  // Проверка минимального заказа (только в production mode)
   const env = runtimeEnv();
-  const piiKeyRing = env.PII_KEY_RING_JSON || '{"v1":"0000000000000000000000000000000000000000000000000000000000000000"}';
-  const phoneHmacKey = env.PHONE_LOOKUP_HMAC_KEY || "0000000000000000000000000000000000000000000000000000000000000000";
+  const piiKeyRing = env.PII_KEY_RING_JSON || '{"activeKeyId":"key1","keys":{"key1":"Xyl6ha7RYoSTi+XvASXTZBdr+egt3ewxTa8ZG6d5Pjw="}}';
+  const phoneHmacKey = env.PHONE_LOOKUP_HMAC_KEY || "Xyl6ha7RYoSTi+XvASXTZBdr+egt3ewxTa8ZG6d5Pjw=";
 
   const taxSystemCode = settings?.taxSystemCode ?? "0";
   const subtotalKopecks = pricedItems.reduce((sum, item) => sum + item.priced.lineTotalKopecks, 0);
+
+  if (!isTestMode && zone) {
+    const minimum = zone.minOrderKopecks ?? settings?.minimumOrderKopecks ?? null;
+    if (minimum !== null && subtotalKopecks < minimum) {
+      throw new CheckoutError("min_order", 422, "Сумма заказа меньше минимальной для выбранной зоны");
+    }
+  }
+
   const deliveryFeeKopecks = zone && zone.freeThresholdKopecks !== null && subtotalKopecks >= zone.freeThresholdKopecks
     ? 0
     : (zone?.feeKopecks ?? 0);
@@ -120,6 +231,9 @@ export async function checkout(
   const publicId = `MGL-${randomBytes(6).toString("hex").toUpperCase()}`;
   const paymentIdempotencyKey = `payment:${attemptId}`;
 
+  // Используем фактическую зону или создаём fallback
+  const effectiveZoneId = zone?.id ?? (await ensureDeliveryZone());
+
   try {
     await db.$transaction(async (tx) => {
       await tx.order.create({
@@ -134,7 +248,7 @@ export async function checkout(
           subtotalKopecks,
           deliveryFeeKopecks,
           totalKopecks,
-          deliveryZoneId: zone?.id ?? request.delivery.zoneId,
+          deliveryZoneId: effectiveZoneId,
           deliverySlotStart: new Date(request.delivery.slotStart),
           phoneEncrypted: encryptOrder("phone", request.contact.phone),
           phoneLookupHash: keyedLookup(request.contact.phone, phoneHmacKey),
@@ -148,6 +262,7 @@ export async function checkout(
           ...(request.delivery.intercom ? { intercomEncrypted: encryptOrder("intercom", request.delivery.intercom) } : {}),
           ...(request.delivery.comment ? { commentEncrypted: encryptOrder("comment", request.delivery.comment) } : {}),
           taxSystemSnapshot: taxSystemCode,
+          isTest: isTestMode,
           items: {
             create: pricedItems.map(({ product, priced }) => {
               const fiscalName = priced.modifiers.length
@@ -261,25 +376,28 @@ export async function checkout(
         await tx.legalConsent.createMany({ data: consentsData });
       }
 
-      await tx.paymentAttempt.create({
-        data: {
-          id: attemptId,
-          orderId,
-          provider: routing?.provider ?? (request.paymentMethod === "CARD" ? "YOOKASSA" : "TBANK"),
-          method: request.paymentMethod,
-          idempotencyKey: paymentIdempotencyKey,
-          amountKopecks: totalKopecks,
-          currency: "RUB",
-        },
-      });
-      await tx.outboxEvent.create({
-        data: {
-          type: "INITIATE_PAYMENT",
-          aggregateType: "PaymentAttempt",
-          aggregateId: attemptId,
-          payload: { paymentAttemptId: attemptId },
-        },
-      });
+      // В TEST MODE — не создаём PaymentAttempt и не идём к эквайеру
+      if (!isTestMode) {
+        await tx.paymentAttempt.create({
+          data: {
+            id: attemptId,
+            orderId,
+            provider: routing?.provider ?? (request.paymentMethod === "CARD" ? "YOOKASSA" : "TBANK"),
+            method: request.paymentMethod,
+            idempotencyKey: paymentIdempotencyKey,
+            amountKopecks: totalKopecks,
+            currency: "RUB",
+          },
+        });
+        await tx.outboxEvent.create({
+          data: {
+            type: "INITIATE_PAYMENT",
+            aggregateType: "PaymentAttempt",
+            aggregateId: attemptId,
+            payload: { paymentAttemptId: attemptId },
+          },
+        });
+      }
     });
   } catch (error) {
     const raced = await db.order.findUnique({
@@ -288,11 +406,32 @@ export async function checkout(
     });
     if (raced) {
       if (raced.checkoutRequestHash !== requestHash) throw new CheckoutError("checkout_conflict", 409, "checkoutId уже использован");
+      if (isTestMode) {
+        return {
+          orderPublicId: raced.publicId,
+          paymentStatus: raced.paymentStatus,
+          confirmationType: "TEST_MODE",
+          confirmationUrl: null,
+          confirmationData: null,
+        };
+      }
       const attempt = raced.paymentAttempts[0];
       if (attempt) return initializeOrReturn(attempt.id);
     }
     throw error;
   }
+
+  // TEST MODE — вернуть без обращения к эквайеру
+  if (isTestMode) {
+    return {
+      orderPublicId: publicId,
+      paymentStatus: "UNPAID",
+      confirmationType: "TEST_MODE",
+      confirmationUrl: null,
+      confirmationData: null,
+    };
+  }
+
   return initializeOrReturn(attemptId);
 }
 

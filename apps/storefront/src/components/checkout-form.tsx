@@ -37,6 +37,10 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
     let checkoutId = sessionStorage.getItem("mangal-checkout-id");
     if (!checkoutId) { checkoutId = crypto.randomUUID(); sessionStorage.setItem("mangal-checkout-id", checkoutId); }
     const phone = normalizePhone(String(form.get("phone") ?? ""));
+    // Validate phone before sending
+    if (!/^\+7\d{10}$/.test(phone)) {
+      setError("Введите российский номер телефона в формате +7 927 000 00 00"); setSubmitting(false); return;
+    }
     const slotValue = String(form.get("slotStart") ?? "");
     const isPickup = fulfillmentType === "PICKUP";
     const payload = {
@@ -85,13 +89,23 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
     } finally { setSubmitting(false); }
   }
 
-  if (confirmation) return <section className="border border-white/10 p-7"><p className="eyebrow">Заказ создан</p><h2 className="display mt-3 text-5xl">{confirmation.orderPublicId}</h2>{confirmation.confirmationType === "QR" && confirmation.confirmationData ? <><p className="mt-5 text-sm text-[var(--muted)]">Откройте ссылку СБП на мобильном устройстве:</p><a className="mt-3 block break-all border border-[var(--copper)] p-4 text-sm" href={confirmation.confirmationData}>Перейти к оплате через СБП</a></> : null}<Link href={`/order/${confirmation.orderPublicId}`} className="mt-6 inline-block text-[var(--copper)]">Проверить статус заказа →</Link></section>;
+  if (confirmation) {
+    const isTest = confirmation.confirmationType === "TEST_MODE";
+    return <section className="border border-white/10 p-7">
+      {isTest && <p style={{ background: "#f97316", color: "#000", padding: "4px 12px", marginBottom: 16, fontWeight: "bold", display: "inline-block" }}>🧪 ТЕСТ-ЗАКАЗ — без оплаты</p>}
+      <p className="eyebrow">{isTest ? "Тестовый заказ создан" : "Заказ создан"}</p>
+      <h2 className="display mt-3 text-5xl">{confirmation.orderPublicId}</h2>
+      {isTest && <p className="mt-4 text-sm text-[var(--muted)]">Заказ записан в базу данных. Проверьте в <a className="text-[var(--copper)] underline" href="/admin/orders">Админке → Заказы</a>. Статус: {confirmation.paymentStatus}.</p>}
+      {confirmation.confirmationType === "QR" && confirmation.confirmationData ? <><p className="mt-5 text-sm text-[var(--muted)]">Откройте ссылку СБП на мобильном устройстве:</p><a className="mt-3 block break-all border border-[var(--copper)] p-4 text-sm" href={confirmation.confirmationData}>Перейти к оплате через СБП</a></> : null}
+      {!isTest && <Link href={`/order/${confirmation.orderPublicId}`} className="mt-6 inline-block text-[var(--copper)]">Проверить статус заказа →</Link>}
+    </section>;
+  }
 
   if (!items.length) return <div className="border border-white/10 p-8"><h2 className="display text-4xl">Корзина пуста</h2><Link href="/#menu" className="mt-5 inline-block text-[var(--copper)]">Вернуться в меню →</Link></div>;
 
   return <form onSubmit={submit} className="grid gap-10 lg:grid-cols-[1fr_.65fr]">
     <div className="space-y-10">
-      <fieldset><legend className="display mb-5 text-3xl">Контакты</legend><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Телефон<input className="field mt-2" name="phone" inputMode="tel" autoComplete="tel" placeholder="+7 927 000 00 00" required pattern="[+0-9 ()-]{11,20}" /></label><label className="text-sm">Email для чека, если нужен<input className="field mt-2" name="email" type="email" autoComplete="email" /></label></div></fieldset>
+      <fieldset><legend className="display mb-5 text-3xl">Контакты</legend><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Телефон<input className="field mt-2" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="+7 927 000 00 00" required /></label><label className="text-sm">Email для чека, если нужен<input className="field mt-2" name="email" type="email" autoComplete="email" /></label></div></fieldset>
       <fieldset>
         <legend className="display mb-5 text-3xl">Способ получения</legend>
         <div className="grid grid-cols-2 gap-3 mb-6">

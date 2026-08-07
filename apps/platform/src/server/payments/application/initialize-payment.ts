@@ -41,25 +41,7 @@ export async function initializePaymentAttempt(attemptId: string): Promise<Payme
   const started = performance.now();
   const endMetric = providerLatency.startTimer({ provider: input.provider, operation: "init" });
   try {
-    let initialized: InitializedPayment;
-    try {
-      initialized = await client.initialize(input.payload);
-    } catch (err) {
-      // Fallback for demo/testing when payment keys are absent
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mangal-site-d8bt.vercel.app";
-      initialized = {
-        provider: input.provider,
-        externalPaymentId: `mock_${attemptId}`,
-        providerStatus: "mock_success",
-        amountKopecks: input.payload.amountKopecks,
-        currency: "RUB",
-        orderId: input.payload.orderId,
-        state: "SUCCEEDED" as const,
-        confirmationType: "REDIRECT" as const,
-        confirmationUrl: `${siteUrl}/order/${encodeURIComponent(input.payload.orderPublicId)}`,
-        providerRequestId: `req_${attemptId}`,
-      };
-    }
+    const initialized = await client.initialize(input.payload);
     await db.paymentOperation.update({
       where: { id: operation.id },
       data: {
@@ -78,7 +60,7 @@ export async function initializePaymentAttempt(attemptId: string): Promise<Payme
         confirmationType: initialized.confirmationType,
         confirmationUrl: initialized.confirmationUrl ?? null,
         confirmationData: initialized.confirmationData ?? null,
-        status: "SUCCEEDED",
+        status: initialized.state === "SUCCEEDED" ? "SUCCEEDED" : "REQUIRES_ACTION",
         initializedAt: new Date(),
         lastProviderStatus: initialized.providerStatus,
       },
