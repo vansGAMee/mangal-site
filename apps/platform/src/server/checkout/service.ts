@@ -351,7 +351,7 @@ async function createTestOrder(
         phoneEncrypted: encryptOrder("phone", request.contact.phone),
         phoneLookupHash: keyedLookup(request.contact.phone, phoneHmacKey),
         ...(request.contact.email ? { emailEncrypted: encryptOrder("email", request.contact.email) } : {}),
-        cityEncrypted: encryptOrder("city", request.delivery.city || "Маркс"),
+        cityEncrypted: encryptOrder("city", request.delivery.city || "Воронеж"),
         streetEncrypted: encryptOrder("street", request.delivery.street || "Самовывоз"),
         houseEncrypted: encryptOrder("house", request.delivery.house || "1"),
         ...(request.delivery.comment ? { commentEncrypted: encryptOrder("comment", request.delivery.comment) } : {}),

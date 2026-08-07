@@ -43,12 +43,37 @@ export function AdminSettings() {
       setMessage("Payment routing изменён; существующие попытки сохранили исходного провайдера"); form.reset(); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Ошибка"); }
   }
+  async function deleteZone(id: string) {
+    if (!confirm("Вы действительно хотите удалить эту зону доставки?")) return;
+    try {
+      await adminMutation("/api/admin/settings", "PATCH", { operation: "delete_zone", id });
+      setMessage("Зона удалена"); await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Ошибка"); }
+  }
   const current = (method: "CARD" | "SBP") => data.routing.find((route) => route.method === method)?.provider ?? "YOOKASSA";
   return <section style={{ padding: "30px 0" }}>
-    <h1>Настройки</h1>{message ? <p role="status">{message}</p> : null}
+    <h1>Настройки</h1>{message ? <p role="status" style={{ color: "#f97316", fontWeight: "bold" }}>{message}</p> : null}
     <form className="admin-card" onSubmit={(event) => { event.preventDefault(); void store(event.currentTarget); }}><h2>Магазин</h2><div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}><label>Lead time<input className="admin-field" name="lead" type="number" defaultValue={data.store.leadTimeMinutes} /></label><label>Минимум, коп.<input className="admin-field" name="minimum" type="number" defaultValue={data.store.minimumOrderKopecks ?? ""} /></label><label>Основание<select className="admin-field" name="basis" defaultValue={data.store.legalBasis}><option>CONTRACT</option><option>CONSENT</option></select></label><label>СНО<input className="admin-field" name="tax" defaultValue={data.store.taxSystemCode ?? ""} /></label><button className="admin-button">Сохранить v{data.store.version}</button></div></form>
-    <form className="admin-card" style={{ marginTop: 18 }} onSubmit={(event) => { event.preventDefault(); void zone(event.currentTarget); }}><h2>Добавить зону доставки</h2><div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}><label>Название<input className="admin-field" name="name" required /></label><label>Город<input className="admin-field" name="city" required /></label><label>Стоимость, коп.<input className="admin-field" name="fee" type="number" min="0" required /></label><label>Бесплатно от<input className="admin-field" name="free" type="number" min="0" /></label><label>Минимум<input className="admin-field" name="minimum" type="number" min="0" /></label><button className="admin-button">Добавить</button></div></form>
-    <h2>Зоны</h2>{data.zones.map((deliveryZone) => <div className="admin-card" key={deliveryZone.id}>{deliveryZone.name} · {deliveryZone.city} · {deliveryZone.feeKopecks} коп. · v{deliveryZone.version}</div>)}
+    <form className="admin-card" style={{ marginTop: 18 }} onSubmit={(event) => { event.preventDefault(); void zone(event.currentTarget); }}><h2>Добавить зону доставки</h2><div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}><label>Название<input className="admin-field" name="name" placeholder="например: Центр" required /></label><label>Город<input className="admin-field" name="city" defaultValue="Воронеж" required /></label><label>Стоимость, коп.<input className="admin-field" name="fee" type="number" min="0" defaultValue="0" required /></label><label>Бесплатно от<input className="admin-field" name="free" type="number" min="0" /></label><label>Минимум<input className="admin-field" name="minimum" type="number" min="0" /></label><button className="admin-button">Добавить</button></div></form>
+    <h2>Зоны доставки</h2>
+    <div style={{ display: "grid", gap: 12 }}>
+      {data.zones.length === 0 ? <p style={{ color: "#888" }}>Нет созданных зон доставки. Добавьте зону выше.</p> : data.zones.map((deliveryZone) => (
+        <div className="admin-card" key={deliveryZone.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <b style={{ fontSize: 16 }}>{deliveryZone.name}</b>
+            <span style={{ marginLeft: 10, color: "#aaa" }}>г. {deliveryZone.city} · {deliveryZone.feeKopecks / 100} ₽ delivery · v{deliveryZone.version}</span>
+          </div>
+          <button
+            type="button"
+            className="admin-button"
+            style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626", padding: "4px 12px", fontSize: 13 }}
+            onClick={() => void deleteZone(deliveryZone.id)}
+          >
+            Удалить
+          </button>
+        </div>
+      ))}
+    </div>
     <p>Часы работы настраиваются тем же защищённым endpoint по каждому weekday; production gate требует семь записей.</p>
     <form className="admin-card" onSubmit={(event) => { event.preventDefault(); void routing(event.currentTarget); }}><h2>Payment routing · повторная аутентификация</h2><div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}><label>CARD<select className="admin-field" name="card" defaultValue={current("CARD")}><option>YOOKASSA</option><option>TBANK</option></select></label><label>SBP<select className="admin-field" name="sbp" defaultValue={current("SBP")}><option>YOOKASSA</option><option>TBANK</option></select></label><label>Пароль<input className="admin-field" name="password" type="password" required /></label><label>TOTP<input className="admin-field" name="totp" inputMode="numeric" pattern="\d{6}" required /></label><button className="admin-button">Изменить routing</button></div></form>
   </section>;

@@ -56,7 +56,7 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
       contact: { phone, ...(form.get("email") ? { email: String(form.get("email")) } : {}) },
       delivery: {
         zoneId: isPickup ? pickupZoneId : String(form.get("zoneId") || pickupZoneId),
-        city: isPickup ? "Маркс" : String(form.get("city")),
+        city: isPickup ? "Воронеж" : String(form.get("city")),
         street: isPickup ? "Самовывоз" : String(form.get("street")),
         house: isPickup ? "1" : String(form.get("house")),
         ...(form.get("apartment") && !isPickup ? { apartment: String(form.get("apartment")) } : {}),

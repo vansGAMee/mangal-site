@@ -109,6 +109,16 @@ export function AdminOrder({ orderId }: { orderId: string }) {
     }
   }
 
+  async function deleteOrder() {
+    if (!confirm("Вы действительно хотите удалить этот заказ из базы данных?")) return;
+    try {
+      await adminMutation(`/api/admin/orders/${currentOrder.id}`, "DELETE");
+      location.assign("/admin");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Не удалось удалить заказ");
+    }
+  }
+
   return (
     <section style={{ padding: "30px 0" }}>
       <h1>
@@ -119,24 +129,25 @@ export function AdminOrder({ orderId }: { orderId: string }) {
         {currentOrder.paymentStatus} · {currentOrder.fulfillmentStatus} ·{" "}
         {formatRubles(currentOrder.totalKopecks)} · v{currentOrder.version}
       </p>
-      {message ? <p role="status">{message}</p> : null}
+      {message ? <p role="status" style={{ color: "#f97316", fontWeight: "bold" }}>{message}</p> : null}
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-          gap: 12,
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          margin: "24px 0",
         }}
       >
         <article className="admin-card">
           <h2>Контакт и доставка</h2>
           <p>
-            {currentOrder.contact.phone}
+            <b>Тел:</b> {currentOrder.contact.phone}
             <br />
-            {currentOrder.contact.email}
+            {currentOrder.contact.email && <><b>Email:</b> {currentOrder.contact.email}<br /></>}
           </p>
           <p>
-            {[
+            <b>Адрес:</b> {[
               currentOrder.delivery.city,
               currentOrder.delivery.street,
               currentOrder.delivery.house,
@@ -145,7 +156,14 @@ export function AdminOrder({ orderId }: { orderId: string }) {
               .filter(Boolean)
               .join(", ")}
           </p>
-          <p>{currentOrder.delivery.comment}</p>
+          {currentOrder.delivery.comment ? (
+            <div style={{ background: "#252423", border: "1px solid #444", padding: "10px 14px", marginTop: 12, borderRadius: 6 }}>
+              <b style={{ color: "#c89d5c", display: "block", marginBottom: 4 }}>💬 Комментарий к заказу:</b>
+              <span style={{ fontSize: 15, whiteSpace: "pre-wrap" }}>{currentOrder.delivery.comment}</span>
+            </div>
+          ) : (
+            <p style={{ color: "#777", fontSize: 13, marginTop: 8 }}><i>Комментарий отсутствует</i></p>
+          )}
         </article>
 
         <article className="admin-card">
@@ -227,6 +245,16 @@ export function AdminOrder({ orderId }: { orderId: string }) {
           {event.paymentStatus} / {event.fulfillmentStatus}
         </p>
       ))}
+      <div style={{ marginTop: 40, paddingTop: 20, borderTop: "1px solid #333" }}>
+        <button
+          className="admin-button"
+          style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
+          onClick={() => void deleteOrder()}
+          type="button"
+        >
+          🗑 Удалить этот заказ из БД
+        </button>
+      </div>
     </section>
   );
 }
