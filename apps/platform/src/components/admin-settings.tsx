@@ -57,7 +57,7 @@ export function AdminSettings() {
     <form className="admin-card" style={{ marginTop: 18 }} onSubmit={(event) => { event.preventDefault(); void zone(event.currentTarget); }}><h2>Добавить зону доставки</h2><div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}><label>Название<input className="admin-field" name="name" placeholder="например: Центр" required /></label><label>Город<input className="admin-field" name="city" defaultValue="Воронеж" required /></label><label>Стоимость, коп.<input className="admin-field" name="fee" type="number" min="0" defaultValue="0" required /></label><label>Бесплатно от<input className="admin-field" name="free" type="number" min="0" /></label><label>Минимум<input className="admin-field" name="minimum" type="number" min="0" /></label><button className="admin-button">Добавить</button></div></form>
     <h2>Зоны доставки</h2>
     <div style={{ display: "grid", gap: 12 }}>
-      {data.zones.length === 0 ? <p style={{ color: "#888" }}>Нет созданных зон доставки. Добавьте зону выше.</p> : data.zones.map((deliveryZone) => (
+      {data.zones.filter((z) => z.isActive).length === 0 ? <p style={{ color: "#888" }}>Нет созданных зон доставки. Добавьте зону выше.</p> : data.zones.filter((z) => z.isActive).map((deliveryZone) => (
         <div className="admin-card" key={deliveryZone.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <b style={{ fontSize: 16 }}>{deliveryZone.name}</b>

@@ -84,13 +84,39 @@ export async function authenticateAdminRequest(request: Request): Promise<Authen
   return { id: session.adminUser.id, sessionId: session.id, email: session.adminUser.emailNormalized, role: session.adminUser.role, permissions: session.adminUser.permissions.map((permission) => permission.code) };
 }
 
+export function handleAdminError(error: unknown): Response {
+  if (error instanceof AdminAuthError) {
+    if (error.code === "session_expired") {
+      return Response.json({ error: "session_expired" }, { status: 401 });
+    }
+    return Response.json({ error: error.code }, { status: 403 });
+  }
+  console.error("Admin API Error:", error);
+  const message = error instanceof Error ? error.message : "internal_error";
+  return Response.json({ error: message }, { status: 400 });
+}
+
 export async function validateAdminMutation(request: Request): Promise<AuthenticatedAdmin> {
   const requestOrigin = request.headers.get("origin");
   if (requestOrigin) {
-    const requestUrlOrigin = new URL(request.url).origin;
-    const configuredOrigin = process.env.ADMIN_BASE_URL ? new URL(process.env.ADMIN_BASE_URL).origin : null;
-    const isAllowed = requestOrigin === requestUrlOrigin || (configuredOrigin !== null && requestOrigin === configuredOrigin);
-    if (!isAllowed) throw new AdminAuthError("origin");
+    try {
+      const originHost = new URL(requestOrigin).host;
+      const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+      const hostHeader = request.headers.get("host")?.split(",")[0]?.trim();
+      const urlHost = new URL(request.url).host;
+      const configuredHost = process.env.ADMIN_BASE_URL ? new URL(process.env.ADMIN_BASE_URL).host : null;
+
+      const isAllowed =
+        (forwardedHost && originHost === forwardedHost) ||
+        (hostHeader && originHost === hostHeader) ||
+        (urlHost && originHost === urlHost) ||
+        (configuredHost !== null && originHost === configuredHost);
+
+      if (!isAllowed) throw new AdminAuthError("origin");
+    } catch (e) {
+      if (e instanceof AdminAuthError) throw e;
+      throw new AdminAuthError("origin");
+    }
   }
   const admin = await authenticateAdminRequest(request);
   return admin;
@@ -174,6 +200,14 @@ function csrfHash(token: string): string {
 }
 
 function cookieValue(request: Request, name: string): string | null {
-  const match = request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`));
-  return match ? match.slice(name.length + 1) : null;
+  const rawCookie = request.headers.get("cookie");
+  if (!rawCookie) return null;
+  const parts = rawCookie.split(";").map((part) => part.trim());
+  const match = parts.find((part) => part.startsWith(`${name}=`));
+  if (match) return match.slice(name.length + 1);
+
+  const altName = name.startsWith("__Host-") ? name.slice(7) : `__Host-${name}`;
+  const altMatch = parts.find((part) => part.startsWith(`${altName}=`));
+  return altMatch ? altMatch.slice(altName.length + 1) : null;
 }
+

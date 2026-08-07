@@ -68,6 +68,18 @@ export function AdminCatalog() {
     }
   }
 
+  async function removeCategory(categoryId: string) {
+    if (!confirm("Вы уверены, что хотите удалить эту категорию?")) return;
+    setMessage("Удаление категории...");
+    try {
+      await adminMutation(`/api/admin/categories/${categoryId}`, "DELETE");
+      setMessage("Категория удалена");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ошибка при удалении категории");
+    }
+  }
+
   async function removeProduct(productId: string) {
     if (!confirm("Вы уверены, что хотите удалить это блюдо?")) return;
     setMessage("Удаление...");
@@ -108,7 +120,16 @@ export function AdminCatalog() {
       {message ? <p role="status" style={{ color: "#ff6b00", fontWeight: "bold" }}>{message}</p> : null}
       {categories.map((category) => (
         <div key={category.id}>
-          <h2 style={{ marginTop: 38, borderBottom: "1px solid #ddd", paddingBottom: 8 }}>{category.name}</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 38, borderBottom: "1px solid #444", paddingBottom: 8 }}>
+            <h2 style={{ margin: 0 }}>{category.name}</h2>
+            <button
+              type="button"
+              onClick={() => void removeCategory(category.id)}
+              style={{ background: "transparent", color: "#dc2626", border: "1px solid #dc2626", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 12 }}
+            >
+              🗑 Удалить категорию
+            </button>
+          </div>
           
           {/* Add Product Form */}
           <form
