@@ -246,14 +246,20 @@ export function AdminOrder({ orderId }: { orderId: string }) {
         </p>
       ))}
       <div style={{ marginTop: 40, paddingTop: 20, borderTop: "1px solid #333" }}>
-        <button
-          className="admin-button"
-          style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
-          onClick={() => void deleteOrder()}
-          type="button"
-        >
-          🗑 Удалить этот заказ из БД
-        </button>
+        {currentOrder.isTest ? (
+          <button
+            className="admin-button"
+            style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
+            onClick={() => void deleteOrder()}
+            type="button"
+          >
+            🗑 Удалить этот тестовый заказ из БД
+          </button>
+        ) : (
+          <p style={{ color: "#888", fontSize: 13 }}>
+            🔒 Физическое удаление реальных (боевых) заказов запрещено для сохранения финансовой отчетности. Удаление разрешено только для 🧪 тестовых заказов.
+          </p>
+        )}
       </div>
     </section>
   );

@@ -100,22 +100,24 @@ export async function validateAdminMutation(request: Request): Promise<Authentic
   const requestOrigin = request.headers.get("origin");
   if (requestOrigin) {
     try {
-      const originHost = new URL(requestOrigin).host;
-      const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
-      const hostHeader = request.headers.get("host")?.split(",")[0]?.trim();
-      const urlHost = new URL(request.url).host;
-      const configuredHost = process.env.ADMIN_BASE_URL ? new URL(process.env.ADMIN_BASE_URL).host : null;
+      const getHostname = (h: string | null | undefined) => {
+        if (!h) return null;
+        const first = h.split(",")[0]?.trim();
+        if (!first) return null;
+        return first.split(":")[0]?.toLowerCase() ?? null;
+      };
 
-      const originDomain = originHost.toLowerCase();
-      const reqHostDomain = (forwardedHost || hostHeader || urlHost || "").toLowerCase();
-      const isVercelDomain = originDomain.endsWith(".vercel.app") && reqHostDomain.endsWith(".vercel.app");
+      const originHostname = new URL(requestOrigin).hostname.toLowerCase();
+      const forwardedHostname = getHostname(request.headers.get("x-forwarded-host"));
+      const hostHeaderHostname = getHostname(request.headers.get("host"));
+      const urlHostname = getHostname(new URL(request.url).hostname);
+      const configuredHostname = process.env.ADMIN_BASE_URL ? getHostname(new URL(process.env.ADMIN_BASE_URL).hostname) : null;
 
       const isAllowed =
-        (forwardedHost && originHost === forwardedHost) ||
-        (hostHeader && originHost === hostHeader) ||
-        (urlHost && originHost === urlHost) ||
-        (configuredHost !== null && originHost === configuredHost) ||
-        isVercelDomain;
+        originHostname === forwardedHostname ||
+        originHostname === hostHeaderHostname ||
+        originHostname === urlHostname ||
+        (configuredHostname !== null && originHostname === configuredHostname);
 
       if (!isAllowed) throw new AdminAuthError("origin");
     } catch (e) {
