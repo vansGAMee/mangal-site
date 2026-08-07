@@ -43,12 +43,19 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
     }
     const slotValue = String(form.get("slotStart") ?? "");
     const isPickup = fulfillmentType === "PICKUP";
+    // slotStart: если не заполнено или в прошлом — берём +30 минут
+    const slotDate = slotValue ? new Date(slotValue) : null;
+    const slotIso = (slotDate && slotDate.getTime() > Date.now() + 5 * 60_000)
+      ? slotDate.toISOString()
+      : new Date(Date.now() + 30 * 60_000).toISOString();
+    // zoneId: для PICKUP берём первую зону из каталога или nil UUID (TEST MODE сам найдёт зону в БД)
+    const pickupZoneId = catalog.store.deliveryZones[0]?.id ?? "00000000-0000-0000-0000-000000000000";
     const payload = {
       checkoutId,
       items: items.map((item) => ({ ...item })),
       contact: { phone, ...(form.get("email") ? { email: String(form.get("email")) } : {}) },
       delivery: {
-        zoneId: String(form.get("zoneId") || catalog.store.deliveryZones[0]?.id || ""),
+        zoneId: isPickup ? pickupZoneId : String(form.get("zoneId") || pickupZoneId),
         city: isPickup ? "Маркс" : String(form.get("city")),
         street: isPickup ? "Самовывоз" : String(form.get("street")),
         house: isPickup ? "1" : String(form.get("house")),
@@ -56,7 +63,7 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
         ...(form.get("entrance") && !isPickup ? { entrance: String(form.get("entrance")) } : {}),
         ...(form.get("floor") && !isPickup ? { floor: String(form.get("floor")) } : {}),
         ...(form.get("intercom") && !isPickup ? { intercom: String(form.get("intercom")) } : {}),
-        slotStart: new Date(slotValue).toISOString(),
+        slotStart: slotIso,
         comment: isPickup ? `[САМОВЫВОЗ] ${form.get("comment") || ""}`.trim() : String(form.get("comment") || ""),
       },
       paymentMethod: String(form.get("paymentMethod")),
@@ -134,7 +141,7 @@ export function CheckoutForm({ catalog }: { catalog: PublicCatalogResponse }) {
       <fieldset><legend className="display mb-5 text-3xl">Оплата</legend><div className="grid grid-cols-2 gap-3"><label className="border border-white/10 p-4 has-[:checked]:border-[var(--ember)]"><input type="radio" name="paymentMethod" value="CARD" defaultChecked /> <span className="ml-2">Картой</span></label><label className="border border-white/10 p-4 has-[:checked]:border-[var(--ember)]"><input type="radio" name="paymentMethod" value="SBP" /> <span className="ml-2">СБП</span></label></div></fieldset>
       <fieldset className="space-y-4"><legend className="sr-only">Согласия</legend><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="personalData" required={catalog.store.personalDataLegalBasis === "CONSENT"} /> <span>Я ознакомлен(а) с <Link className="underline" href="/legal/privacy">политикой обработки персональных данных</Link>. Чекбокс не предустановлен. {catalog.store.personalDataLegalBasis === "CONTRACT" ? "Основание заказа настроено как исполнение договора; юрист должен подтвердить эту модель." : "Для заказа требуется отдельное согласие."}</span></label><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="offer" required /> <span>Принимаю <Link className="underline" href="/legal/offer">оферту и условия доставки</Link>.</span></label><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="terms" required /> <span>Принимаю <Link className="underline" href="/legal/terms">пользовательское соглашение</Link>.</span></label><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" name="marketing" /> <span>Хочу получать рекламные SMS. Это необязательно для заказа; отказ также будет сохранён.</span></label></fieldset>
     </div>
-    <aside className="h-fit border border-white/10 p-6 lg:sticky lg:top-6"><p className="eyebrow">Ваш заказ</p><div className="mt-5 space-y-4">{items.map((line) => <div key={`${line.productId}:${line.modifierOptionIds.join(",")}`} className="flex justify-between gap-4 border-b border-white/10 pb-4"><span>{products.get(line.productId)?.name ?? "Каталог изменился"} × {line.quantity}{line.unit === "KILOGRAM" ? " кг" : ""}</span></div>)}</div><div className="mt-5 flex justify-between"><span>Предварительно</span><strong className="mono">{formatRubles(estimated)}</strong></div><p className="mt-3 text-xs leading-5 text-[var(--muted)]">Доставка и итог пересчитываются на сервере.</p>{error ? <p role="alert" className="mt-5 border border-[var(--ember)] p-3 text-sm">{error}</p> : null}<Button type="submit" disabled={submitting || !catalog.store.deliveryZones.length} className="mt-6 w-full">{submitting ? "Создаём заказ…" : "Перейти к оплате"}</Button></aside>
+    <aside className="h-fit border border-white/10 p-6 lg:sticky lg:top-6"><p className="eyebrow">Ваш заказ</p><div className="mt-5 space-y-4">{items.map((line) => <div key={`${line.productId}:${line.modifierOptionIds.join(",")}`} className="flex justify-between gap-4 border-b border-white/10 pb-4"><span>{products.get(line.productId)?.name ?? "Каталог изменился"} × {line.quantity}{line.unit === "KILOGRAM" ? " кг" : ""}</span></div>)}</div><div className="mt-5 flex justify-between"><span>Предварительно</span><strong className="mono">{formatRubles(estimated)}</strong></div><p className="mt-3 text-xs leading-5 text-[var(--muted)]">Доставка и итог пересчитываются на сервере.</p>{error ? <p role="alert" className="mt-5 border border-[var(--ember)] p-3 text-sm">{error}</p> : null}<Button type="submit" disabled={submitting} className="mt-6 w-full">{submitting ? "Создаём заказ…" : "Перейти к оплате"}</Button></aside>
   </form>;
 }
 

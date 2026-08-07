@@ -23,72 +23,15 @@ export class CheckoutError extends Error {
   }
 }
 
-// ------------------------------------------------------------------
-// Bootstrap helpers — создают минимальные конфиг-записи если их нет.
-// НЕ трогают Product/Category/imagePath.
-// ------------------------------------------------------------------
-
-async function ensureOperatingHours(): Promise<void> {
-  const count = await db.operatingHours.count();
-  if (count > 0) return;
-  const days = [
-    { weekday: 1, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
-    { weekday: 2, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
-    { weekday: 3, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
-    { weekday: 4, opensAt: "09:00", closesAt: "22:00", slotLength: 30 },
-    { weekday: 5, opensAt: "09:00", closesAt: "23:00", slotLength: 30 },
-    { weekday: 6, opensAt: "10:00", closesAt: "23:00", slotLength: 30 },
-    { weekday: 0, opensAt: "10:00", closesAt: "22:00", slotLength: 30 },
-  ];
-  await db.operatingHours.createMany({ data: days, skipDuplicates: true });
-}
-
-async function ensureLegalDocumentVersions(): Promise<void> {
-  const docs = [
-    { type: "PERSONAL_DATA" as const, version: "pd-v1", documentPath: "/legal/privacy", contentSha256: "placeholder-sha256-pd" },
-    { type: "MARKETING" as const, version: "marketing-v1", documentPath: "/legal/marketing", contentSha256: "placeholder-sha256-mkt" },
-    { type: "OFFER" as const, version: "offer-v1", documentPath: "/legal/offer", contentSha256: "placeholder-sha256-offer" },
-    { type: "TERMS" as const, version: "terms-v1", documentPath: "/legal/terms", contentSha256: "placeholder-sha256-terms" },
-  ];
-  for (const doc of docs) {
-    await db.legalDocumentVersion.upsert({
-      where: { type_version: { type: doc.type, version: doc.version } },
-      create: doc,
-      update: {},
-    });
-  }
-}
-
-async function ensureDeliveryZone(): Promise<string> {
-  const zone = await db.deliveryZone.findFirst({ where: { isActive: true } });
-  if (zone) return zone.id;
-  const created = await db.deliveryZone.create({
-    data: { name: "Самовывоз / Основная зона", city: "Маркс", feeKopecks: 0, freeThresholdKopecks: 0, isActive: true },
-  });
-  return created.id;
-}
-
-async function ensurePaymentRouting(): Promise<void> {
-  await db.paymentRouting.upsert({
-    where: { method: "CARD" },
-    create: { method: "CARD", provider: "YOOKASSA", isActive: false },
-    update: {},
-  });
-  await db.paymentRouting.upsert({
-    where: { method: "SBP" },
-    create: { method: "SBP", provider: "TBANK", isActive: false },
-    update: {},
-  });
-}
-
-// ------------------------------------------------------------------
+const IS_TEST_MODE = process.env.CHECKOUT_TEST_MODE === "true";
 
 export async function checkout(
   request: CheckoutRequest,
   evidence: { ip: string; userAgent: string },
 ): Promise<PaymentConfirmation> {
-  const isTestMode = process.env.CHECKOUT_TEST_MODE === "true";
-
+  // ----------------------------------------------------------------
+  // Idempotency — если уже создавали с тем же checkoutId, отдать то же
+  // ----------------------------------------------------------------
   const requestHash = sha256(stableJson(request));
   const existing = await db.order.findUnique({
     where: { checkoutId: request.checkoutId },
@@ -98,75 +41,30 @@ export async function checkout(
     if (existing.checkoutRequestHash !== requestHash) {
       throw new CheckoutError("checkout_conflict", 409, "checkoutId уже использован для другого запроса");
     }
-    if (isTestMode || (existing as Record<string, unknown>).isTest) {
-      return {
-        orderPublicId: existing.publicId,
-        paymentStatus: existing.paymentStatus,
-        confirmationType: "TEST_MODE",
-        confirmationUrl: null,
-        confirmationData: null,
-      };
+    if (IS_TEST_MODE) {
+      return testModeConfirmation(existing.publicId, existing.paymentStatus);
     }
     const attempt = existing.paymentAttempts[0];
     if (!attempt) throw new CheckoutError("store_not_configured", 422, "Платёжная попытка заказа отсутствует");
     return initializeOrReturn(attempt.id);
   }
 
-  // Bootstrap конфиг-таблиц если пусты
-  await Promise.all([
-    ensureOperatingHours(),
-    ensureLegalDocumentVersions(),
-    ensurePaymentRouting(),
-  ]);
-
-  const [products, settings, pdDocument, marketingDocument, offerDocument, termsDocument] = await Promise.all([
-    db.product.findMany({
-      where: { id: { in: request.items.map((item) => item.productId) } },
-      include: {
-        modifierGroups: {
-          include: { modifierGroup: { include: { options: true } } },
-        },
+  // ----------------------------------------------------------------
+  // Ценообразование — всегда нужно; не трогает конфиг-таблицы
+  // ----------------------------------------------------------------
+  const products = await db.product.findMany({
+    where: { id: { in: request.items.map((item) => item.productId) } },
+    include: {
+      modifierGroups: {
+        include: { modifierGroup: { include: { options: true } } },
       },
-    }),
-    db.storeSettings.findUnique({ where: { id: "singleton" } }),
-    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "PERSONAL_DATA", version: "pd-v1" } } }),
-    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "MARKETING", version: "marketing-v1" } } }),
-    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "OFFER", version: "offer-v1" } } }),
-    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "TERMS", version: "terms-v1" } } }),
-  ]);
+    },
+  });
 
-  // Найти или создать зону доставки
-  let zone = await db.deliveryZone.findUnique({ where: { id: request.delivery.zoneId } });
-  if (!zone) {
-    // Взять первую активную зону или создать новую
-    const fallbackZoneId = await ensureDeliveryZone();
-    zone = await db.deliveryZone.findUnique({ where: { id: fallbackZoneId } });
-  }
-
-  const routing = await db.paymentRouting.findUnique({ where: { method: request.paymentMethod } });
-
-  // --- Проверки PRODUCTION MODE ---
-  if (!isTestMode) {
-    if (!settings) {
-      throw new CheckoutError("store_not_configured", 422, "Настройки магазина не завершены");
-    }
-    if (!zone || !zone.isActive) {
-      throw new CheckoutError("store_not_configured", 422, "Зона доставки недоступна");
-    }
-    if (!routing?.isActive) {
-      throw new CheckoutError("store_not_configured", 422, "Эквайер не настроен: свяжитесь с оператором");
-    }
-    if (settings.legalBasis === "CONSENT" && request.consents.personalData?.accepted !== true) {
-      throw new CheckoutError("consent_required", 422, "Для выбранного основания требуется согласие на обработку персональных данных");
-    }
-  }
-
-  await validateDeliverySlot(request.delivery.slotStart);
-
-  const productById = new Map(products.map((product) => [product.id, product]));
+  const productById = new Map(products.map((p) => [p.id, p]));
   const pricedItems = request.items.map((item) => {
     const product = productById.get(item.productId);
-    if (!product) throw new CheckoutError("catalog_changed", 409, "Состав каталога изменился");
+    if (!product) throw new CheckoutError("catalog_changed", 409, "Товар отсутствует в каталоге");
     const priceable: PriceableProduct = {
       id: product.id,
       name: product.name,
@@ -184,41 +82,82 @@ export async function checkout(
         required: modifierGroup.required,
         minSelect: modifierGroup.minSelect,
         maxSelect: modifierGroup.maxSelect,
-        options: modifierGroup.options.map((option) => ({
-          id: option.id,
-          name: option.name,
-          priceDeltaKopecks: option.priceDeltaKopecks,
-          isAvailable: option.isAvailable,
+        options: modifierGroup.options.map((o) => ({
+          id: o.id,
+          name: o.name,
+          priceDeltaKopecks: o.priceDeltaKopecks,
+          isAvailable: o.isAvailable,
         })),
       })),
     };
     try {
-      return { request: item, product, priced: priceLine(priceable, item) };
-    } catch (error) {
-      if (error instanceof PricingError) throw new CheckoutError("catalog_changed", 409, error.message);
-      throw error;
+      return { product, priced: priceLine(priceable, item) };
+    } catch (e) {
+      if (e instanceof PricingError) throw new CheckoutError("catalog_changed", 409, e.message);
+      throw e;
     }
   });
 
-  // Проверка минимального заказа (только в production mode)
-  const env = runtimeEnv();
-  const piiKeyRing = env.PII_KEY_RING_JSON || '{"activeKeyId":"key1","keys":{"key1":"Xyl6ha7RYoSTi+XvASXTZBdr+egt3ewxTa8ZG6d5Pjw="}}';
-  const phoneHmacKey = env.PHONE_LOOKUP_HMAC_KEY || "Xyl6ha7RYoSTi+XvASXTZBdr+egt3ewxTa8ZG6d5Pjw=";
+  const subtotalKopecks = pricedItems.reduce((s, i) => s + i.priced.lineTotalKopecks, 0);
 
-  const taxSystemCode = settings?.taxSystemCode ?? "0";
-  const subtotalKopecks = pricedItems.reduce((sum, item) => sum + item.priced.lineTotalKopecks, 0);
-
-  if (!isTestMode && zone) {
-    const minimum = zone.minOrderKopecks ?? settings?.minimumOrderKopecks ?? null;
-    if (minimum !== null && subtotalKopecks < minimum) {
-      throw new CheckoutError("min_order", 422, "Сумма заказа меньше минимальной для выбранной зоны");
-    }
+  // ----------------------------------------------------------------
+  // TEST MODE — пропускаем ВСЕ production-readiness проверки:
+  //   - validateDeliverySlot (OperatingHours)
+  //   - zone/routing/settings checks
+  //   - LegalConsent creation (FK dependence)
+  //   - Payment init
+  // ----------------------------------------------------------------
+  if (IS_TEST_MODE) {
+    return createTestOrder(request, evidence, pricedItems, subtotalKopecks);
   }
 
-  const deliveryFeeKopecks = zone && zone.freeThresholdKopecks !== null && subtotalKopecks >= zone.freeThresholdKopecks
+  // ----------------------------------------------------------------
+  // PRODUCTION MODE — полные проверки
+  // ----------------------------------------------------------------
+  const [settings, zone, routing, pdDocument, marketingDocument, offerDocument, termsDocument] = await Promise.all([
+    db.storeSettings.findUnique({ where: { id: "singleton" } }),
+    db.deliveryZone.findUnique({ where: { id: request.delivery.zoneId } }),
+    db.paymentRouting.findUnique({ where: { method: request.paymentMethod } }),
+    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "PERSONAL_DATA", version: "pd-v1" } } }),
+    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "MARKETING", version: "marketing-v1" } } }),
+    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "OFFER", version: "offer-v1" } } }),
+    db.legalDocumentVersion.findUnique({ where: { type_version: { type: "TERMS", version: "terms-v1" } } }),
+  ]);
+
+  if (!settings || !zone || !zone.isActive || !routing?.isActive) {
+    throw new CheckoutError("store_not_configured", 422, "Оформление временно недоступно: настройки магазина не завершены");
+  }
+  if (!pdDocument || !marketingDocument || !offerDocument || !termsDocument) {
+    throw new CheckoutError("store_not_configured", 422, "Юридические документы не опубликованы");
+  }
+  if (settings.legalBasis === "CONSENT" && request.consents.personalData?.accepted !== true) {
+    throw new CheckoutError("consent_required", 422, "Для выбранного основания требуется согласие на обработку персональных данных");
+  }
+  if (zone.city.trim().toLocaleLowerCase("ru") !== request.delivery.city.trim().toLocaleLowerCase("ru")) {
+    throw new CheckoutError("slot_unavailable", 409, "Адрес не относится к выбранной зоне доставки");
+  }
+  if (!settings.taxSystemCode || pricedItems.some(({ product }) =>
+    !product.fiscalVatCode || !product.fiscalPaymentSubject || !product.fiscalPaymentMode || !product.fiscalMeasure)) {
+    throw new CheckoutError("store_not_configured", 422, "Фискальные параметры меню требуют подтверждения оператором");
+  }
+
+  await validateDeliverySlot(request.delivery.slotStart);
+
+  const minimum = zone.minOrderKopecks ?? settings.minimumOrderKopecks;
+  if (minimum !== null && subtotalKopecks < minimum) {
+    throw new CheckoutError("min_order", 422, "Сумма заказа меньше минимальной для выбранной зоны");
+  }
+
+  const env = runtimeEnv();
+  if (!env.PII_KEY_RING_JSON || !env.PHONE_LOOKUP_HMAC_KEY) {
+    throw new CheckoutError("store_not_configured", 422, "Ключи защиты персональных данных не настроены");
+  }
+
+  const deliveryFeeKopecks = zone.freeThresholdKopecks !== null && subtotalKopecks >= zone.freeThresholdKopecks
     ? 0
-    : (zone?.feeKopecks ?? 0);
+    : zone.feeKopecks;
   const totalKopecks = subtotalKopecks + deliveryFeeKopecks;
+  const taxSystemCode = settings.taxSystemCode;
 
   const orderId = randomUUID();
   const attemptId = randomUUID();
@@ -226,13 +165,10 @@ export async function checkout(
   const marketingConsentId = randomUUID();
   const offerConsentId = randomUUID();
   const termsConsentId = randomUUID();
-  const cipher = new PiiCipher(piiKeyRing);
+  const cipher = new PiiCipher(env.PII_KEY_RING_JSON);
   const encryptOrder = (field: string, value: string) => cipher.encrypt(value, associatedData(orderId, field));
   const publicId = `MGL-${randomBytes(6).toString("hex").toUpperCase()}`;
   const paymentIdempotencyKey = `payment:${attemptId}`;
-
-  // Используем фактическую зону или создаём fallback
-  const effectiveZoneId = zone?.id ?? (await ensureDeliveryZone());
 
   try {
     await db.$transaction(async (tx) => {
@@ -248,10 +184,10 @@ export async function checkout(
           subtotalKopecks,
           deliveryFeeKopecks,
           totalKopecks,
-          deliveryZoneId: effectiveZoneId,
+          deliveryZoneId: zone.id,
           deliverySlotStart: new Date(request.delivery.slotStart),
           phoneEncrypted: encryptOrder("phone", request.contact.phone),
-          phoneLookupHash: keyedLookup(request.contact.phone, phoneHmacKey),
+          phoneLookupHash: keyedLookup(request.contact.phone, env.PHONE_LOOKUP_HMAC_KEY!),
           ...(request.contact.email ? { emailEncrypted: encryptOrder("email", request.contact.email) } : {}),
           cityEncrypted: encryptOrder("city", request.delivery.city),
           streetEncrypted: encryptOrder("street", request.delivery.street),
@@ -262,48 +198,9 @@ export async function checkout(
           ...(request.delivery.intercom ? { intercomEncrypted: encryptOrder("intercom", request.delivery.intercom) } : {}),
           ...(request.delivery.comment ? { commentEncrypted: encryptOrder("comment", request.delivery.comment) } : {}),
           taxSystemSnapshot: taxSystemCode,
-          isTest: isTestMode,
+          isTest: false,
           items: {
-            create: pricedItems.map(({ product, priced }) => {
-              const fiscalName = priced.modifiers.length
-                ? `${product.name} (${priced.modifiers.map((modifier) => modifier.optionName).join(", ")})`
-                : product.name;
-              const fiscalUnitPrice = priced.unitPriceKopecks + priced.modifierTotalPerUnitKopecks;
-              const fiscalPayload = {
-                fiscalName,
-                unitPriceKopecks: fiscalUnitPrice,
-                quantity: priced.quantity,
-                amountKopecks: priced.lineTotalKopecks,
-                vatCode: product.fiscalVatCode ?? "1",
-                taxSystemCode: taxSystemCode,
-                paymentSubject: product.fiscalPaymentSubject ?? "1",
-                paymentMode: product.fiscalPaymentMode ?? "1",
-                measure: product.fiscalMeasure ?? "1",
-              };
-              return {
-                productId: product.id,
-                productVersionSnapshot: product.version,
-                nameSnapshot: product.name,
-                compositionSnapshot: product.compositionText,
-                portionNoteSnapshot: product.portionNote,
-                pricingTypeSnapshot: product.pricingType,
-                saleUnitSnapshot: product.saleUnit,
-                unitPriceKopecks: priced.unitPriceKopecks,
-                quantity: priced.quantity,
-                lineTotalKopecks: priced.lineTotalKopecks,
-                modifiers: {
-                  create: priced.modifiers.map((modifier) => ({
-                    modifierOptionId: modifier.id,
-                    groupNameSnapshot: modifier.groupName,
-                    optionNameSnapshot: modifier.optionName,
-                    priceDeltaKopecks: modifier.priceDeltaKopecks,
-                  })),
-                },
-                fiscalSnapshot: {
-                  create: { ...fiscalPayload, sourceReceiptPayloadHash: sha256(stableJson(fiscalPayload)) },
-                },
-              };
-            }),
+            create: pricedItems.map(({ product, priced }) => buildOrderItem(product, priced, taxSystemCode)),
           },
           statusHistory: {
             create: { paymentStatus: "UNPAID", fulfillmentStatus: "NEW", actorType: "CUSTOMER" },
@@ -311,24 +208,21 @@ export async function checkout(
         },
       });
 
-      const consentsData = [];
-      if (pdDocument) {
-        consentsData.push({
+      const consentsData = [
+        {
           id: personalConsentId,
           orderId,
           legalDocumentVersionId: pdDocument.id,
           type: "PERSONAL_DATA" as const,
-          decision: settings?.legalBasis === "CONTRACT" ? ("ACKNOWLEDGED" as const) : ("GRANTED" as const),
+          decision: settings.legalBasis === "CONTRACT" ? ("ACKNOWLEDGED" as const) : ("GRANTED" as const),
           version: pdDocument.version,
           documentPath: pdDocument.documentPath,
           contentSha256: pdDocument.contentSha256,
           ipEncrypted: cipher.encrypt(evidence.ip, associatedData(personalConsentId, "ip")),
           normalizedUserAgent: evidence.userAgent,
-          legalBasis: settings?.legalBasis ?? "CONTRACT",
-        });
-      }
-      if (marketingDocument) {
-        consentsData.push({
+          legalBasis: settings.legalBasis,
+        },
+        {
           id: marketingConsentId,
           orderId,
           legalDocumentVersionId: marketingDocument.id,
@@ -340,10 +234,8 @@ export async function checkout(
           ipEncrypted: cipher.encrypt(evidence.ip, associatedData(marketingConsentId, "ip")),
           normalizedUserAgent: evidence.userAgent,
           legalBasis: "CONSENT" as const,
-        });
-      }
-      if (offerDocument) {
-        consentsData.push({
+        },
+        {
           id: offerConsentId,
           orderId,
           legalDocumentVersionId: offerDocument.id,
@@ -355,10 +247,8 @@ export async function checkout(
           ipEncrypted: cipher.encrypt(evidence.ip, associatedData(offerConsentId, "ip")),
           normalizedUserAgent: evidence.userAgent,
           legalBasis: "CONTRACT" as const,
-        });
-      }
-      if (termsDocument) {
-        consentsData.push({
+        },
+        {
           id: termsConsentId,
           orderId,
           legalDocumentVersionId: termsDocument.id,
@@ -370,34 +260,29 @@ export async function checkout(
           ipEncrypted: cipher.encrypt(evidence.ip, associatedData(termsConsentId, "ip")),
           normalizedUserAgent: evidence.userAgent,
           legalBasis: "CONTRACT" as const,
-        });
-      }
-      if (consentsData.length > 0) {
-        await tx.legalConsent.createMany({ data: consentsData });
-      }
+        },
+      ];
 
-      // В TEST MODE — не создаём PaymentAttempt и не идём к эквайеру
-      if (!isTestMode) {
-        await tx.paymentAttempt.create({
-          data: {
-            id: attemptId,
-            orderId,
-            provider: routing?.provider ?? (request.paymentMethod === "CARD" ? "YOOKASSA" : "TBANK"),
-            method: request.paymentMethod,
-            idempotencyKey: paymentIdempotencyKey,
-            amountKopecks: totalKopecks,
-            currency: "RUB",
-          },
-        });
-        await tx.outboxEvent.create({
-          data: {
-            type: "INITIATE_PAYMENT",
-            aggregateType: "PaymentAttempt",
-            aggregateId: attemptId,
-            payload: { paymentAttemptId: attemptId },
-          },
-        });
-      }
+      await tx.legalConsent.createMany({ data: consentsData });
+      await tx.paymentAttempt.create({
+        data: {
+          id: attemptId,
+          orderId,
+          provider: routing.provider,
+          method: request.paymentMethod,
+          idempotencyKey: paymentIdempotencyKey,
+          amountKopecks: totalKopecks,
+          currency: "RUB",
+        },
+      });
+      await tx.outboxEvent.create({
+        data: {
+          type: "INITIATE_PAYMENT",
+          aggregateType: "PaymentAttempt",
+          aggregateId: attemptId,
+          payload: { paymentAttemptId: attemptId },
+        },
+      });
     });
   } catch (error) {
     const raced = await db.order.findUnique({
@@ -405,15 +290,8 @@ export async function checkout(
       include: { paymentAttempts: { orderBy: { createdAt: "desc" }, take: 1 } },
     });
     if (raced) {
-      if (raced.checkoutRequestHash !== requestHash) throw new CheckoutError("checkout_conflict", 409, "checkoutId уже использован");
-      if (isTestMode) {
-        return {
-          orderPublicId: raced.publicId,
-          paymentStatus: raced.paymentStatus,
-          confirmationType: "TEST_MODE",
-          confirmationUrl: null,
-          confirmationData: null,
-        };
+      if (raced.checkoutRequestHash !== requestHash) {
+        throw new CheckoutError("checkout_conflict", 409, "checkoutId уже использован");
       }
       const attempt = raced.paymentAttempts[0];
       if (attempt) return initializeOrReturn(attempt.id);
@@ -421,20 +299,91 @@ export async function checkout(
     throw error;
   }
 
-  // TEST MODE — вернуть без обращения к эквайеру
-  if (isTestMode) {
-    return {
-      orderPublicId: publicId,
-      paymentStatus: "UNPAID",
-      confirmationType: "TEST_MODE",
-      confirmationUrl: null,
-      confirmationData: null,
-    };
-  }
-
   return initializeOrReturn(attemptId);
 }
 
+// ----------------------------------------------------------------
+// TEST MODE order creation — никаких LegalConsents, никакого эквайера
+// ----------------------------------------------------------------
+async function createTestOrder(
+  request: CheckoutRequest,
+  evidence: { ip: string; userAgent: string },
+  pricedItems: Array<{ product: Awaited<ReturnType<typeof db.product.findMany>>[0] & { modifierGroups: unknown[] }; priced: ReturnType<typeof priceLine> }>,
+  subtotalKopecks: number,
+): Promise<PaymentConfirmation> {
+  const env = runtimeEnv();
+  // Fallback PII keys — только для теста, не для продакшна
+  const piiKeyRing = env.PII_KEY_RING_JSON ?? '{"activeKeyId":"key1","keys":{"key1":"dGVzdC1rZXktZm9yLWRldmVsb3BtZW50LW9ubHk="}}';
+  const phoneHmacKey = env.PHONE_LOOKUP_HMAC_KEY ?? "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  // Найти любую зону — используем существующую из БД или подставляем нулевой UUID только для FK
+  const zone = await db.deliveryZone.findFirst({ where: { isActive: true } })
+    ?? await db.deliveryZone.findFirst();
+  if (!zone) {
+    throw new CheckoutError("store_not_configured", 422, "TEST MODE: в БД нет ни одной зоны доставки. Создайте одну в /admin/delivery-zones.");
+  }
+
+  const orderId = randomUUID();
+  const cipher = new PiiCipher(piiKeyRing);
+  const encryptOrder = (field: string, value: string) => cipher.encrypt(value, associatedData(orderId, field));
+  const publicId = `MGL-${randomBytes(6).toString("hex").toUpperCase()}`;
+  const taxSystemCode = "0";
+
+  await db.$transaction(async (tx) => {
+    await tx.order.create({
+      data: {
+        id: orderId,
+        publicId,
+        checkoutId: request.checkoutId,
+        checkoutRequestHash: sha256(stableJson(request)),
+        paymentStatus: "UNPAID",
+        fulfillmentStatus: "NEW",
+        paymentMethod: request.paymentMethod,
+        subtotalKopecks,
+        deliveryFeeKopecks: 0,
+        totalKopecks: subtotalKopecks,
+        deliveryZoneId: zone.id,
+        // Время слота: используем переданное или +15 минут от сейчас
+        deliverySlotStart: (() => {
+          const d = new Date(request.delivery.slotStart);
+          return Number.isFinite(d.getTime()) ? d : new Date(Date.now() + 15 * 60_000);
+        })(),
+        phoneEncrypted: encryptOrder("phone", request.contact.phone),
+        phoneLookupHash: keyedLookup(request.contact.phone, phoneHmacKey),
+        ...(request.contact.email ? { emailEncrypted: encryptOrder("email", request.contact.email) } : {}),
+        cityEncrypted: encryptOrder("city", request.delivery.city || "Маркс"),
+        streetEncrypted: encryptOrder("street", request.delivery.street || "Самовывоз"),
+        houseEncrypted: encryptOrder("house", request.delivery.house || "1"),
+        ...(request.delivery.comment ? { commentEncrypted: encryptOrder("comment", request.delivery.comment) } : {}),
+        taxSystemSnapshot: taxSystemCode,
+        isTest: true,
+        items: {
+          create: pricedItems.map(({ product, priced }) => buildOrderItem(product, priced, taxSystemCode)),
+        },
+        statusHistory: {
+          create: { paymentStatus: "UNPAID", fulfillmentStatus: "NEW", actorType: "CUSTOMER" },
+        },
+      },
+    });
+    // LegalConsent — не создаём, ждём production setup
+  });
+
+  return testModeConfirmation(publicId, "UNPAID");
+}
+
+function testModeConfirmation(publicId: string, paymentStatus: string): PaymentConfirmation {
+  return {
+    orderPublicId: publicId,
+    paymentStatus,
+    confirmationType: "TEST_MODE",
+    confirmationUrl: null,
+    confirmationData: null,
+  };
+}
+
+// ----------------------------------------------------------------
+// Production payment helpers
+// ----------------------------------------------------------------
 async function initializeOrReturn(attemptId: string): Promise<PaymentConfirmation> {
   try {
     return await initializePaymentAttempt(attemptId);
@@ -459,28 +408,74 @@ async function validateDeliverySlot(slotValue: string): Promise<void> {
     minute: "2-digit",
     hourCycle: "h23",
   }).formatToParts(slot);
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
   const weekdays: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   const weekday = weekdays[part("weekday")];
   const hours = weekday === undefined ? null : await db.operatingHours.findUnique({ where: { weekday } });
   if (!hours) throw new CheckoutError("store_not_configured", 422, "Часы работы не настроены");
-  if (hours.isClosed || !hours.opensAt || !hours.closesAt) throw new CheckoutError("slot_unavailable", 409, "Заведение закрыто в выбранное время");
+  if (hours.isClosed || !hours.opensAt || !hours.closesAt) {
+    throw new CheckoutError("slot_unavailable", 409, "Заведение закрыто в выбранное время");
+  }
   const minute = Number(part("hour")) * 60 + Number(part("minute"));
-  const toMinutes = (value: string) => {
-    const [h, m] = value.split(":").map(Number);
-    return h! * 60 + m!;
-  };
-  if (minute < toMinutes(hours.opensAt) || minute >= toMinutes(hours.closesAt)) {
+  const toMin = (v: string) => { const [h, m] = v.split(":").map(Number); return h! * 60 + m!; };
+  if (minute < toMin(hours.opensAt) || minute >= toMin(hours.closesAt)) {
     throw new CheckoutError("slot_unavailable", 409, "Время находится вне часов работы");
   }
   if (hours.capacity !== null) {
     const end = new Date(slot.getTime() + hours.slotLength * 60_000);
     const count = await db.order.count({
-      where: {
-        deliverySlotStart: { gte: slot, lt: end },
-        fulfillmentStatus: { not: "CANCELED" },
-      },
+      where: { deliverySlotStart: { gte: slot, lt: end }, fulfillmentStatus: { not: "CANCELED" } },
     });
     if (count >= hours.capacity) throw new CheckoutError("slot_unavailable", 409, "На выбранное время нет свободных слотов");
   }
+}
+
+// ----------------------------------------------------------------
+// Shared helper — строит данные для OrderItem из priced line
+// ----------------------------------------------------------------
+function buildOrderItem(
+  product: { id: string; name: string; fiscalVatCode: string | null; fiscalPaymentSubject: string | null; fiscalPaymentMode: string | null; fiscalMeasure: string | null; version: number; compositionText: string | null; portionNote: string | null; pricingType: string; saleUnit: string },
+  priced: ReturnType<typeof priceLine>,
+  taxSystemCode: string,
+) {
+  const fiscalName = priced.modifiers.length
+    ? `${product.name} (${priced.modifiers.map((m) => m.optionName).join(", ")})`
+    : product.name;
+  const fiscalUnitPrice = priced.unitPriceKopecks + priced.modifierTotalPerUnitKopecks;
+  const fiscalPayload = {
+    fiscalName,
+    unitPriceKopecks: fiscalUnitPrice,
+    quantity: priced.quantity,
+    amountKopecks: priced.lineTotalKopecks,
+    vatCode: product.fiscalVatCode ?? "1",
+    taxSystemCode,
+    paymentSubject: product.fiscalPaymentSubject ?? "1",
+    paymentMode: product.fiscalPaymentMode ?? "1",
+    measure: product.fiscalMeasure ?? "1",
+  };
+  return {
+    productId: product.id,
+    productVersionSnapshot: product.version,
+    nameSnapshot: product.name,
+    compositionSnapshot: product.compositionText,
+    portionNoteSnapshot: product.portionNote,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pricingTypeSnapshot: product.pricingType as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    saleUnitSnapshot: product.saleUnit as any,
+    unitPriceKopecks: priced.unitPriceKopecks,
+    quantity: priced.quantity,
+    lineTotalKopecks: priced.lineTotalKopecks,
+    modifiers: {
+      create: priced.modifiers.map((m) => ({
+        modifierOptionId: m.id,
+        groupNameSnapshot: m.groupName,
+        optionNameSnapshot: m.optionName,
+        priceDeltaKopecks: m.priceDeltaKopecks,
+      })),
+    },
+    fiscalSnapshot: {
+      create: { ...fiscalPayload, sourceReceiptPayloadHash: sha256(stableJson(fiscalPayload)) },
+    },
+  };
 }
