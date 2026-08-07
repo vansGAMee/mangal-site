@@ -180,16 +180,21 @@ export function AdminOrder({ orderId }: { orderId: string }) {
       <h2>Workflow</h2>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {["CONFIRMED", "PREPARING", "OUT_FOR_DELIVERY", "COMPLETED"].map(
-          (value) => (
-            <button
-              className="admin-button"
-              key={value}
-              onClick={() => void updateStatus(value)}
-              type="button"
-            >
-              {value}
-            </button>
-          ),
+          (value) => {
+            const isCurrent = currentOrder.fulfillmentStatus === value;
+            return (
+              <button
+                className="admin-button"
+                key={value}
+                style={isCurrent ? { background: "#c89d5c", color: "#000", fontWeight: "bold" } : undefined}
+                disabled={isCurrent}
+                onClick={() => void updateStatus(value)}
+                type="button"
+              >
+                {isCurrent ? `✓ ${value}` : value}
+              </button>
+            );
+          },
         )}
       </div>
 
