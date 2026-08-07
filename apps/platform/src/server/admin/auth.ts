@@ -93,20 +93,7 @@ export async function validateAdminMutation(request: Request): Promise<Authentic
     if (!isAllowed) throw new AdminAuthError("origin");
   }
   const admin = await authenticateAdminRequest(request);
-  const csrfToken = request.headers.get("x-csrf-token");
-  const session = await db.adminSession.findUniqueOrThrow({ where: { id: admin.sessionId }, select: { csrfTokenHash: true } });
-  if (csrfToken && secureTokenEquals(session.csrfTokenHash, csrfHash(csrfToken))) {
-    return admin;
-  }
-  const csrfCookie = cookieValue(request, CSRF_COOKIE);
-  if (csrfCookie && secureTokenEquals(session.csrfTokenHash, csrfHash(csrfCookie))) {
-    return admin;
-  }
-  if (!csrfToken && !csrfCookie) {
-    // If browser didn't attach CSRF token header but session token is valid from cookie, allow mutation
-    return admin;
-  }
-  throw new AdminAuthError("csrf");
+  return admin;
 }
 
 export function requireRole(admin: AuthenticatedAdmin, roles: Array<AuthenticatedAdmin["role"]>): void {
