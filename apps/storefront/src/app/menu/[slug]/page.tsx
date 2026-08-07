@@ -17,9 +17,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!product) return {};
   return {
     title: product.name,
-    description: product.compositionText ?? `${product.name} в меню «МАНГАЛ». ${product.displayPriceLabel}.`,
+    description: product.compositionText ?? `${product.name} в меню «Шаверма Воронеж». ${product.displayPriceLabel}.`,
     alternates: { canonical: `/menu/${product.slug}` },
-    openGraph: { title: `${product.name} — МАНГАЛ`, description: product.compositionText ?? product.displayPriceLabel },
+    openGraph: { title: `${product.name} — Шаверма Воронеж`, description: product.compositionText ?? product.displayPriceLabel },
   };
 }
 
@@ -49,12 +49,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
     <Link href="/#menu" className="eyebrow inline-flex hover:text-[var(--ember)] transition-colors">← Вернуться в меню</Link>
     <div className="mt-8 grid gap-10 md:gap-16 md:grid-cols-[1.1fr_.9fr] md:items-start">
-      <div className="relative aspect-[4/3] overflow-hidden bg-[#ebe6dd] rounded-[4px]">
-        <Image src={product.imagePath} alt="Фотография блюда не предоставлена" fill priority sizes="(max-width:768px) 100vw, 55vw" className="object-cover" />
-        <span className="absolute bottom-4 left-4 bg-white/90 px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--charcoal)] border hairline rounded-[2px]">Editorial image · не фото блюда</span>
+      <div className="relative aspect-square w-full rounded-[8px] overflow-hidden bg-neutral-900 border hairline">
+        <Image src={product.imagePath} alt={product.name} fill className="object-cover" priority />
       </div>
       <div className="md:pt-4">
-        <p className="eyebrow mb-4">Меню «МАНГАЛ»</p>
+        <p className="eyebrow mb-4">Меню «Шаверма Воронеж»</p>
         <h1 className="display text-4xl md:text-6xl leading-tight mb-6">{product.name}</h1>
         <p className="mono text-2xl font-semibold mb-8">{product.displayPriceLabel}</p>
         

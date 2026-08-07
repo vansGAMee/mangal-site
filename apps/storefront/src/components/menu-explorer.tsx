@@ -80,14 +80,11 @@ export function MenuExplorer({ catalog }: { catalog: PublicCatalogResponse }) {
                         sizes="(max-width:768px) 100vw, 33vw" 
                         className="object-cover transition-transform duration-300 group-hover:scale-105" 
                       />
-                      <span className="absolute bottom-2.5 left-2.5 bg-black/60 backdrop-blur-xs px-2 py-1 text-[10px] uppercase tracking-wider text-white rounded-[4px]">
-                        Демо-фото
-                      </span>
                     </>
                   ) : (
                     <div className="flex h-full w-full flex-col justify-between p-4 bg-gradient-to-br from-[#faf6ee] to-[#ebe3d5]">
                       <div className="flex items-center justify-between">
-                        <span className="mono text-[10px] uppercase tracking-widest text-[var(--muted)]">МАНГАЛ</span>
+                        <span className="mono text-[10px] uppercase tracking-widest text-[var(--muted)]">Шаверма Воронеж</span>
                         <span className="h-2 w-2 rounded-full bg-[var(--ember)] opacity-80"></span>
                       </div>
                       <div className="text-center py-4">

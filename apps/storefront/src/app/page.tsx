@@ -68,9 +68,6 @@ export default async function HomePage() {
               <span className="text-xs font-medium tracking-wide bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-[4px] border border-white/10">
                 Сочный шашлык на углях
               </span>
-              <span className="text-[10px] text-white/70 uppercase tracking-wider">
-                Демо-иллюстрация
-              </span>
             </div>
           </div>
         </div>
@@ -80,9 +77,6 @@ export default async function HomePage() {
       <div className="mt-14 pt-10 border-t hairline">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h2 className="display text-2xl text-[var(--charcoal)]">Как сделать заказ</h2>
-          <p className="text-xs text-[var(--muted)]">
-            * Фотографии в демоверсии. Перед запуском заменим на фотографии заведения.
-          </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="p-5 rounded-[8px] bg-white border hairline shadow-xs">
