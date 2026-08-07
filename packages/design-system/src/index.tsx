@@ -17,7 +17,7 @@ export function formatRubles(kopecks: number): string {
 export function BrandMark({ className }: { className?: string }) {
   return (
     <img
-      src="/images/shaverma-logo.png"
+      src="/images/shaverma-logo.jpg"
       alt="Шаверма Воронеж"
       className={cn("h-9 w-9 rounded-md object-cover border border-[#ff6b00]/30 shadow-sm", className)}
     />
