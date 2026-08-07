@@ -85,8 +85,13 @@ export async function authenticateAdminRequest(request: Request): Promise<Authen
 }
 
 export async function validateAdminMutation(request: Request): Promise<AuthenticatedAdmin> {
-  const configuredOrigin = process.env.ADMIN_BASE_URL;
-  if (!configuredOrigin || request.headers.get("origin") !== new URL(configuredOrigin).origin) throw new AdminAuthError("origin");
+  const requestOrigin = request.headers.get("origin");
+  if (requestOrigin) {
+    const requestUrlOrigin = new URL(request.url).origin;
+    const configuredOrigin = process.env.ADMIN_BASE_URL ? new URL(process.env.ADMIN_BASE_URL).origin : null;
+    const isAllowed = requestOrigin === requestUrlOrigin || (configuredOrigin !== null && requestOrigin === configuredOrigin);
+    if (!isAllowed) throw new AdminAuthError("origin");
+  }
   const admin = await authenticateAdminRequest(request);
   const csrfToken = request.headers.get("x-csrf-token");
   const csrfCookie = cookieValue(request, CSRF_COOKIE);
