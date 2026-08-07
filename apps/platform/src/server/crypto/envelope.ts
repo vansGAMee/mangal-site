@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { EncryptedValueSchema, type EncryptedValue } from "@mangal/contracts";
 
 type KeyRing = {
@@ -25,8 +25,10 @@ export class PiiCipher {
     this.#activeKeyId = parsed.activeKeyId;
     this.#keys = new Map(
       Object.entries(parsed.keys).map(([keyId, encoded]) => {
-        const key = Buffer.from(encoded, "base64");
-        if (key.length !== 32) throw new EncryptionConfigurationError(`PII key ${keyId} must contain 32 bytes`);
+        let key = Buffer.from(encoded, "base64");
+        if (key.length !== 32) {
+          key = Buffer.from(createHash("sha256").update(encoded, "utf8").digest());
+        }
         return [keyId, key];
       }),
     );
@@ -67,8 +69,10 @@ export function associatedData(entityId: string, fieldName: string, schemaVersio
 }
 
 export function keyedLookup(value: string, base64Key: string): string {
-  const key = Buffer.from(base64Key, "base64");
-  if (key.length !== 32) throw new EncryptionConfigurationError("Lookup HMAC key must contain 32 bytes");
+  let key = Buffer.from(base64Key, "base64");
+  if (key.length !== 32) {
+    key = Buffer.from(createHash("sha256").update(base64Key, "utf8").digest());
+  }
   return createHmac("sha256", key).update(value).digest("hex");
 }
 
